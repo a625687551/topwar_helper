@@ -1,5 +1,6406 @@
-{
-	"type": "U",
-	"expire": "2023-10-22",
-	"js": "\/\/-------------------------------------------------------------------------------------------------\r\n\/\/\u67e5\u627e\u73a9\u5bb6\u5750\u6807\r\nhelper.pro.findPlayer={\r\n    option: {\r\n        whole: !1,\r\n        tag: !1,\r\n        real: !1\r\n    },\r\n    a_tag: null,\r\n    player: null,\r\n    point: null,\r\n    fields: [],\r\n    blocks: [],\r\n\r\n    goto(e) {\r\n        var f = __require(\"WorldMapTools\")\r\n          , k = __require(\"NWorldMapData\").default.instance.serverData.currentServerId, k = k > 0 ? k : UserData.ServerId \r\n          , r = __require(\"NWorldMapData\").default.instance.serverData.currentSubMap\r\n\r\n        e = e.innerText.split(',')      \r\n        e.length == 2 && (f.default.goToWorldMapByPos({x: e[0], y: e[1], s: k, subMap: r}), this.close())\r\n    },\r\n    \r\n    async exec() {\r\n        this.searching ? this.stopping = !0 : await this._find()\r\n        this._render()\r\n    },\r\n\r\n    async more() {\r\n        this.fields = [], this.searching2 = !0, this._render()\r\n        await this._searchFields(this.point.pid)\r\n        this._render()\r\n    },\r\n\r\n    async _find() {\r\n        var doc = helper.dialog.iframe.contentWindow.document\r\n        this.option.whole = doc.getElementById('whole').checked\r\n        this.option.tag = doc.getElementById('tag').checked\r\n        this.player = doc.getElementById('player').value\r\n        this.a_tag = doc.getElementById('a_tag').value\r\n        if (this.player) {\r\n            this.point = null,\r\n            this.fields = [],\r\n            this.searching = !0,\r\n            this.stopping = !1,\r\n            this._render(),\r\n            await this._searchCity()\r\n        }\r\n    },\r\n\r\n    async _searchCity() {\r\n\r\n        this.option.real = helper.dialog.iframe.contentWindow.document.getElementById('real').checked\r\n        for (var i = 0; !this.stopping && !this.point && i < this.map.block_num; ++i) {  \/\/ \u5730\u56fe\u5212\u5206\u4e3ablock_num\u5757,\u6bcf\u5757\u5750\u6807\u8303\u56f486*156,\u90e8\u5206\u91cd\u53e0(\u6bcf\u6b21\u8bf7\u6c42\u670d\u52a1\u5668\u8fd4\u56de90*160)  \u666e\u901a\u5730\u56fe\u5750\u6807\u8303\u56f4:[x:0-816, y:0-952]\r\n            var o = await this._getBlock(i) \r\n            o && o.pointList && o.pointList.forEach(p=>{\r\n                var username = p.p && (!this.option.tag || this.a_tag == p.p.a_tag) && p.p.playerInfo && JSON.parse(p.p.playerInfo).username;\r\n                (username && (this.option.whole ? username==this.player : username.includes(this.player)) || p.p && p.p.pid == this.player) && (\r\n                    this.point = {x:p.x, y:p.y, k:p.k, username:username, pid:p.p.pid, data:p}\r\n                )\r\n            })\r\n        }\r\n        this.searching = !1, this.stopping = !1;  \r\n    },\r\n\r\n    async _searchFields(pid) \r\n    {\r\n        this.option.real = helper.dialog.iframe.contentWindow.document.getElementById('real').checked\r\n        for(var i = 0; i < this.map.block_num; ++i) {\r\n            var o = await this._getBlock(i)\r\n            o && o.pointList && o.pointList.forEach(p=>(p.r && p.r.ownerId == pid || p.b && p.b.pid == pid) &&       \/\/ r:{pointType=4:\u666e\u901a\u7530\uff0c=38:\u8054\u76df\u7530} b:{pointType=24:\u673a\u68b0\u7530} p:{pointType=1:\u57fa\u5730}\r\n                !this.fields.find(e=>e.x==p.x && e.y==p.y) && this.fields.push({x:p.x, y:p.y, k:p.k, type:p.pointType, data:p})\r\n            )\r\n        }\r\n        this.searching2 = !1\r\n    },\r\n\r\n    \/\/\u67e5\u627e\u4e00\u4e2a\u76df\u7684\u6240\u6709\u73a9\u5bb6ID\u540d\u5b57\u53ca\u5750\u6807\r\n    async findRebels(tag) \r\n    {\r\n        this.option.real  = !1\r\n        for(var rebels = [], i=0; i<this.map.block_num; ++i) {\r\n            var o = await this._getBlock(i)\r\n            o && o.pointList && o.pointList.forEach(e=>e && e.p && tag == e.p.a_tag && !rebels.find(t=>t.pid==e.p.pid) && rebels.push({username: JSON.parse(e.p.playerInfo).username, pid:e.p.pid, x:e.x, y:e.y, k:e.k}));\r\n        }\r\n        rebels.forEach(e=>console.log(\"k:\", e.k, \"  x:\", e.x.toString().padEnd(3), \"  y:\", e.y.toString().padEnd(3), \"  pid:\", e.pid, \"  name:\", e.username))\r\n    },\r\n\r\n    async _getBlock(i) {\r\n        (this.option.real || !this.blocks[i] || ServerTime - this.blocks[i].time > 300) && (this.blocks[i] = {data: await this._getServer(i), time: ServerTime})\r\n        return this.blocks[i].data\r\n    },\r\n\r\n    async _getServer(i) {\r\n        var c = i % this.map.cols, r = Math.floor(i \/ this.map.cols)\r\n        var x = Math.min(Math.floor((c+0.5)*this.map.bw)+1, this.map.width-16)   \/\/even\r\n        var y = Math.min(Math.floor((r+0.5)*this.map.bh), this.map.height-16)\r\n        var k = __require(\"NWorldMapData\").default.instance.serverData.currentServerId, k = k > 0 ? k : UserData.ServerId  \r\n        return send(RequestId.GET_WORLD_INFO, {x: x, y: y, k: k, rid: 0, marchInfo: !1, viewLevel: 1})\r\n    },\r\n    \r\n    _render() {\r\n        function timestr(t) {var a=new Date(t*1000); return (a.getMonth()+1)+'-'+a.getDate()+\" \"+a.getHours()+\":\"+a.getMinutes().toString().padStart(2,'0')+\":\"+a.getSeconds().toString().padStart(2,'0')}\r\n\r\n        var iframe = helper.dialog.iframe\r\n        if (iframe && iframe.name == \"find-player\") {\r\n            var doc = iframe.contentWindow.document\r\n            var e, html\r\n            \r\n            e = doc.getElementById(\"player\")\r\n            e.value = this.player ? this.player : \"\"\r\n            e.readOnly = this.searching\r\n\r\n            e =doc.getElementsByTagName(\"button\")[0]\r\n            e.innerText = this.searching ? \"\u505c\u6b62\u67e5\u627e\" : \"\u67e5\u627e\"\r\n\r\n            e = doc.getElementById(\"whole\")\r\n            e.checked = this.option.whole\r\n            e.disabled = this.searching\r\n\r\n            e = doc.getElementById(\"tag\")\r\n            e.checked = this.option.tag\r\n            e.disabled = this.searching\r\n\r\n            e = doc.getElementById(\"a_tag\")\r\n            e.type = this.option.tag ? \"text\" : \"hidden\"\r\n            e.value = this.a_tag\r\n            e.readOnly = this.searching\r\n\r\n            e = doc.getElementById(\"real\")\r\n\/\/            e.checked = this.option.real\r\n            e.disabled = this.searching || this.searching2\r\n            \r\n            e = doc.getElementById(\"point\").getElementsByTagName(\"label\")[0]\r\n            e.innerText = this.point ? \"\u73a9\u5bb6\"+this.point.username+\"(ID:\"+this.point.pid+\")\u5750\u6807:\" : \r\n                          this.stopping ? \"\u505c\u6b62\u67e5\u627e\u73a9\u5bb6\"+this.player+\"...\" : \r\n                          this.searching ? \"\u6b63\u5728\u67e5\u627e\u73a9\u5bb6\"+this.player+\"...\" : \r\n                          this.player ? \"\u672a\u67e5\u627e\u5230\u73a9\u5bb6\"+this.player+\"\u7684\u4f4d\u7f6e\" : \"\u65b0\u7684\u67e5\u627e\"\r\n\r\n            e = doc.getElementById(\"point\").getElementsByTagName(\"a\")[0]\r\n            e.innerText = this.point ? this.point.x + \",\" + this.point.y : \"\"\r\n            e.style.visibility = this.point ? \"visible\" : \"hidden\"\r\n\r\n            e = doc.getElementById(\"point\").getElementsByTagName(\"a\")[1]\r\n            e.style.visibility = this.point ? \"visible\" : \"hidden\"\r\n\r\n            e = doc.getElementById('shield')\r\n            e.innerText = this.point && this.point.data.p.shieldTime && this.point.data.p.shieldTime > ServerTime ? \"\u5f00\u76fe\u65f6\u95f4:\"+timestr(this.point.data.p.shieldTime) : \"\"\r\n            e.style.visibility = this.point && this.point.data.p.shieldTime && this.point.data.p.shieldTime > ServerTime ? \"visible\" : \"hidden\"\r\n  \r\n            html = this.searching2 ? \"<label>\u6b63\u5728\u67e5\u627e...<\/label>\" : \"<label>\u5176\u4ed6\u5750\u6807:<\/label>\"\r\n            this.fields.forEach(e=>html += '<a href=\"javascript:void(0)\" onclick=\"parent.helper.pro.findPlayer.goto(this)\">' + e.x + ',' + e.y + '<\/a>\u3000')\r\n            e = doc.getElementById(\"field\")\r\n            e.innerHTML = html\r\n        }\r\n    },\r\n\r\n    init() {\r\n        var g = __require(\"NWorldMapCommon\").allMapInfos[__require(\"NWorldMapCoreBiz\").default.mapType]\r\n        var w = g.subMap ? g.subMap.get(0).width * 2 : g.cols * 2, h = g.subMap ? g.subMap.get(0).height : g.rows, c = Math.ceil(w \/ 86), r = Math.ceil(h \/ 156)\r\n        this.map={width:w, height:h, bw:86, bh:156, cols:c, rows:r, block_num:c*r}\r\n    },\r\n\r\n    open() {\r\n        helper.dialog.open({name:\"find-player\", width:550, height:160, html:this.html, onclose:this.onclose.bind(this)});\r\n        this._render(); \r\n    },\r\n\r\n    close() {\r\n        helper.dialog.close();\r\n    },\r\n\r\n    onclose() {\r\n        (this.stopping || !this.searching) && (this.searching=!1, this.stopping = !1);\r\n    }\r\n}\r\n\r\nhelper.pro.findPlayer.html = String.raw\r\n`<html charset=\"UTF-8\">\r\n<head>\r\n    <style>\r\n        body{line-height:22px; vertical-align:top; font-size:14px; font-family:\"Helvetica\",\"Lucida Console\",\"Microsoft soft\";}\r\n        h3{display:block; margin-top:12px; margin-bottom:4px; text-align:center; width:100%;}\r\n        label{display:inline-block;margin-left:4px; margin-right:4px; margin-top:4px;}\r\n        input{color:#333;border:1px solid #999; border-radius:3px; outline-style:none; margin-top:8px; margin-bottom:4px; padding:2px;height:20px;}\r\n        input::-webkit-input-placeholder{color: #aaa;}\r\n        input[type=\"checkbox\"]{margin-right:1px; vertical-align:top; margin-top:8px; width:14px; height:14px;}\r\n        #player{margin-left:4px; width:420px;} #a_tag{margin-top:0px; width:60px}\r\n        #option{height:26px;}\r\n        #result{height:56px; overflow:auto;}\r\n        button{border:1px solid #999; border-radius:3px; outline-style:none; text-align:center; margin-left:8px; width:90px; height:21px;}\r\n        button:hover{background-color:#ccc;} button:focus{background-color:#ccc;} button:active{transform: translateY(1px);}\r\n    <\/style>\r\n    <script>\r\n        function $(a) {return a && '#'==a[0] && document.getElementById(a.substring(1))}\r\n    <\/script>\r\n<\/head>\r\n<body>\r\n    <h3>\u67e5\u627e\u73a9\u5bb6\u5750\u6807<\/h3>\r\n    <div>\r\n        <input type=\"text\" id=\"player\" placeholder=\"\u8bf7\u8f93\u5165\u73a9\u5bb6\u540d\u5b57\u6216ID\">\r\n        <button onclick=\"parent.helper.pro.findPlayer.exec()\">\u67e5\u627e<\/button><br>\r\n    <\/div>\r\n    <div id=\"option\">\r\n        <input type=\"checkbox\" id=\"whole\"><label>\u5168\u79f0<\/label>\r\n        <input type=\"checkbox\" id=\"tag\" onclick=\"$('#a_tag').type=this.checked?'text':'hidden';\"><label>\u8054\u76df<\/label>\r\n        <input type=\"hidden\" id=\"a_tag\" placeholder=\"\u8054\u76df\u4ee3\u7801\">\r\n        <input type=\"checkbox\" id=\"real\" onclick=\"$('#tips').style.visibility=this.checked ? 'visible':'hidden'\"><label>\u5b9e\u65f6<\/label><label id=\"tips\" style=\"color:red; visibility:hidden\">\u9891\u7e41\u4f7f\u7528\u4f1a\u88ab\u6682\u505c\u767b\u5f55\uff0c\u8c28\u614e\u4f7f\u7528\u3002<\/label>\r\n    <\/div>\r\n    <div id=\"result\">\r\n        <div id=\"point\"><label>\u65b0\u7684\u67e5\u627e<\/label><a href=\"javascript:void(0);\" onclick=\"parent.helper.pro.findPlayer.goto(this)\"><\/a><label id=\"shield\"><\/label>\u3000<a href=\"javascript:void(0);\" onclick=\"parent.helper.pro.findPlayer.more()\">\u627e\u7530<\/a><\/div>\r\n        <div id=\"field\"><label>\u8d44\u6e90\u5750\u6807:<\/label><\/div>\r\n    <\/div>\r\n<\/body>\r\n<\/html>`\r\n\r\n\r\n\/\/-------------------------------------------------------------------------------------------------\r\n\/\/\u653b\u51fb\u9ed1\u6697\u654c\u519b\r\nhelper.pro.attackMonster && helper.pro.attackMonster.free()\r\nhelper.pro.attackMonster = {\r\n    \/*\r\n    config: [\r\n        {type:43, pt:1, active:!0, name:\"Lujun\", text:\"\u9ed1\u6697\u9646\u519b\", relative: 1, min:-13, max:6, ll:1, lh:86, step:1},\r\n        {type:42, pt:1, active:!0, name:\"Haijun\", text:\"\u9ed1\u6697\u6d77\u519b\", relative: 1, min:-13, max:6, ll:1, lh:86, step:1},\r\n        {type:41, pt:1, active:!0, name:\"Kongjun\", text:\"\u9ed1\u6697\u7a7a\u519b\", relative: 1, min:-13, max:6, ll:1, lh:86, step:1},\r\n        {type:61, pt:1, active:!0, name:\"Thor-1\", text:\"\u9ed1\u96f7\u795e\u9646\u519b\", relative: 1, min:-13, max:6, ll:80, lh:106, step:1},\r\n        {type:9031, pt:1, active:!1, name:\"Mecha\", text:\"\u9ed1\u6697\u673a\u7532\", relative: 0, min:1, max:5, ll:1, lh:5, step:1}\r\n    ],\r\n    *\/\r\n    setting: {\r\n        group:[\r\n            {id:43, selected:1, min:0, max:0},\r\n            {id:42, selected:1, min:0, max:0},\r\n            {id:41, selected:1, min:0, max:0},\r\n            {id:61, selected:1, min:0, max:0}\r\n            \/\/\u56db\u56fd\r\n            \/\/{id:9023, selected:1, min:0, max:0},\r\n            \/\/{id:9022, selected:1, min:0, max:0},\r\n            \/\/{id:9021, selected:1, min:0, max:0},\r\n            \/\/{id:9031, selected:1, min:0, max:0}\r\n        ], \r\n        preset:1, \r\n        count:1, \r\n        interval:1, \r\n        precheck:1,\r\n        energy:0,\r\n        quintic:0 \r\n    },\r\n\r\n    state: {counter:0, lasttime:0, running:!1},\r\n\r\n    get config() {\r\n        var m = __require(\"WorldMonsterModel\").WorldMonsterModel.Instance\r\n        var u = __require(\"WorldMapMonsterSearchComponentNew\").default\r\n        var v = __require(\"KVKTools\")\r\n        var l = __require(\"LocalManager\")\r\n        var y = __require(\"TableManager\")\r\n        var N = __require(\"TableName\")\r\n        var o = new u, a = [], cmin, cmax, text\r\n\r\n        \/\/\u5907\u4efd\u4e0a\u4e0b\u6587\r\n\/\/        var b = {_type: m._type, selectMonsterId: m.selectMonsterId}\r\n        var b = Object.assign({}, m)\r\n\r\n        \/\/\u602a\u7269\u53ca\u7b49\u7ea7\r\n        o.init(), m._type = 1\r\n        m.monsterList.forEach(e=>{\r\n            var i = y.TABLE.getTableDataById(N.TableName.MONSTER_GROUP, String(e.id)).search_show_kvk\r\n            if (v.default.judgeMonsterStar(i)) {\r\n                cmin = 1\r\n                cmax = 5\r\n            }\r\n            else {\r\n                m.selectMonsterId = e.id\r\n                o.updateMonsterLevelLimit()\r\n                cmin = Math.max(m.monsterSearchMinLevel, 1)\r\n                cmax = m.monsterSearchMaxLevel\r\n            }\r\n            text = l.LOCAL.getText(e.name)\r\n            a.push({id: e.id, name: e.name, text: text, order: e.order, cmin: cmin, cmax: cmax}) \r\n        })\r\n\r\n        \/\/\u8fd8\u539f\u4e0a\u4e0b\u6587\r\n\/\/        m._type = b._type\r\n\/\/        m.selectMonsterId = b.selectMonsterId\r\n        Object.assign(m, b)\r\n        \r\n        \/\/\u6309\u7167order\u6392\u5e8f\r\n        a.sort((e,t)=>t.order-e.order)\r\n        return a\r\n    },\r\n\r\n    _march(ti) {\r\n        var context = helper.battle.backup()\r\n        try {\r\n            var wme = new(__require(\"NWorldMapEnemy\").default)\r\n            Object.assign(wme, {tileInfo:ti}).onBtnClickAtack(null, this.setting.quintic.toString())  \/\/0-\u5355\u6b21\u653b\u51fb 1-\u8fde\u7eed\u653b\u51fb\r\n            return helper.battle.setup(this.setting.preset, 9999) && helper.battle.march()            \/\/\u8bbe\u7f6e\u82f1\u96c4\u548c\u58eb\u5175\u5e76\u51fa\u5f81\r\n        }\r\n        finally {\r\n            helper.battle.restore(context);\r\n        }\r\n    },\r\n\r\n    async _attack(p) {\r\n        var wmc = __require(\"NWorldMapController\").default.instance\r\n        var ti = (wmc.updateTileInfo(p, 0), wmc.getTileInfoByCoord(p.x, p.y, p.k, 0));\r\n        if (ti && await helper.battle.mutex.acquire(2000) ) {\r\n            try {\r\n                return await this._march(ti);        \/\/\u51fa\u5f81\r\n            }\r\n            finally {\r\n                helper.battle.mutex.release();\r\n            }\r\n        }\r\n    },\r\n\r\n    \/*\r\n      \u9ed1\u6697\u9646\u519b    groupType=43, pointType=1\r\n      \u9ed1\u6697\u6d77\u519b    groupType=42, pointType=1\r\n      \u9ed1\u6697\u7a7a\u519b    groupType=41, pointType=1\r\n      \u9ed1\u96f7\u795e\u9646\u519b  groupType=61, pointType=1\r\n      \u9ed1\u6697\u673a\u7532    groupType=9031, pointType=1\r\n    *\/ \r\n    _search(task) {\r\n        return send(RequestId.WORLD_SEARCH_MONSTER, {\r\n                    minLevel: task.min,\r\n                    maxLevel: task.max,\r\n                    groupType: task.id,\r\n                    pointType: 1\r\n               })\r\n    },\r\n\r\n    \/\/\u8865\u5145\u4f53\u529b\r\n    _charge() {\r\n        if (this.setting.energy) {\r\n            for(var e of UserData.getItemList()) {\r\n                if (6 === e.Data.type && e.Amount > 0) {\r\n                    return send(RequestId.ITEM_USE, {amount:1, itemid:e.ItemId});\r\n                }\r\n            }\r\n        }\r\n        return 0\r\n    },\r\n\r\n    \/\/\u4f53\u529b\u68c0\u67e5  \r\n    async _energy(task) {\r\n        \/\/\u8ba1\u7b97\u4efb\u52a1\u4f53\u529b\r\n        var y = __require(\"TableManager\").TABLE.getTableDataById(\"monster_group\", task.id.toString())\r\n        var t = __require(\"FWSTool\").Obj.getPropertyByNames(y, 0, \"cost_energy\")\r\n        var s = UserData.getEnergy(1).Point\r\n        if (1 == this.setting.quintic) {\r\n            var n = __require(\"GameTools\").default.getDataConfigData(930203)\r\n            var b = __require(\"GameTools\").default.getDataConfigData(930202)\r\n            t = t * Number(b) * Number(n)\r\n        }\r\n        return (t <= s ? 1 : await this._charge() ? 2 : 0)\r\n    },\r\n\r\n    \/\/\u68c0\u67e5\u7f16\u961f\r\n    _precheck() {\r\n        \/\/\u5355\u5175\u68c0\u67e5(\u542b\u673a\u7532)\r\n        if (0 == this.setting.preset || 9 == this.setting.preset) {\r\n            var one = __require(\"GameTools\").default.getAttackerMyArmys().sort((t, e)=>{return t.ArmyData.power - e.ArmyData.power})[0];\r\n            if (!one || (one.battleMechaData && !helper.battle.mechaOk(one.battleMechaData.mechaId)))\r\n                return 0\r\n        }\r\n        \/\/\u9884\u8bbe\u7f16\u961f\u68c0\u67e5\r\n        if (0 < this.setting.preset && this.setting.preset < 9 && this.setting.precheck) { \r\n            var march = UserData.PresetMarchData.getPreMarchByIndex(this.setting.preset-1)\r\n            if (!march) return 0  \r\n\r\n            \/\/\u68c0\u67e5\u82f1\u96c4\r\n            var heros = __require(\"HeroController\").HeroController.getInstance().getHaveHeroCanMarchList()\r\n            for (var i = 0; i < march.HeroIds.length; ++i) if (!heros.find((e)=>{return e._id == march.HeroIds[i]})) return 0\r\n\r\n            \/\/\u68c0\u67e5\u58eb\u5175\r\n            var armys = __require(\"GameTools\").default.getAttackerMyArmys()\r\n            for (var group = {}, i = 0; i < armys.length; ++i) {var n=armys[i].ArmyData.id; group[n] = (group[n] ? group[n] : 0) + 1}\r\n            for (var e of march.Armys) {\r\n                if (e && e.ArmyId && e.isMecha && !helper.battle.mechaOk(e.mechaId)) return 0\r\n                if (e && e.ArmyId && !e.isMecha && (!group[e.ArmyId] || (group[e.ArmyId] -= e.Num)<0)) return 0\r\n            }\r\n        }\r\n        return 1\r\n    },\r\n\r\n    async _execute(task) {\r\n        \/\/\u884c\u519b\u961f\u5217\u3001\u9884\u8bbe\u82f1\u96c4\u58eb\u5175\r\n        if (task && UserData.myMarchNum < UserData.myMarchNumMAX && this._precheck()) {\r\n            \/\/\u68c0\u67e5\u4f53\u529b\r\n            switch (await this._energy(task)) {\r\n                case 2:\r\n                    \/\/\u81ea\u52a8\u8865\u5145\u4f53\u529b,\u91cd\u65b0\u6267\u884c\u4efb\u52a1 \r\n                    return this._execute(task)\r\n                case 1:\r\n                    \/\/\u4f53\u529b\u68c0\u67e5\u901a\u8fc7,\u67e5\u627e\u5e76\u653b\u51fb \r\n                    var o = await this._search(task)\r\n                    o = o && o.point && await this._attack(o.point)\r\n                    o && o.marchInfo && (this.state.counter++, this.state.lasttime=o.marchInfo.marchStartTime, this._update())\r\n                    o && o.marchInfo || await sleep(5000)\r\n                case 0:\r\n            };\r\n        }\r\n    },\r\n\r\n    _newTask() {       \r\n        for (var a = [], s, i = 0; i < this.config.length; ++i) {\r\n            s = this.setting.group.find(e => e.id == this.config[i].id)\r\n            s && s.selected && s.min && s.max && a.push(s)\r\n        }\r\n        return a[Math.floor(Math.random()*a.length)]\r\n    },\r\n\r\n    async _onTimer() {\r\n        if (this.state.counter < this.setting.count && !this.busy) {\r\n            try {this.busy = 1, await this._execute(this._newTask())} finally{this.busy = 0}\r\n        }        \r\n    },\r\n\r\n    _start() {\r\n        this.timer || (this.timer = setInterval(this._onTimer.bind(this), this.setting.interval*1000))\r\n    },\r\n\r\n    _stop() {\r\n        this.timer && (clearInterval(this.timer), this.timer = 0)\r\n    },\r\n    \r\n    _update() {\r\n        this._save()\r\n        this._render()\r\n    },\r\n\r\n    _save() {\r\n        setItem(\"attack-monster\", JSON.stringify({setting:this.setting, state:this.state}))        \r\n    },\r\n\r\n    async _load() {\r\n        var o = await getItem(\"attack-monster\")\r\n        o && (o = JSON.parse(o)) && (this.setting = o.setting, this.state = o.state)\r\n    },\r\n\r\n    _render() {\r\n        var iframe = helper.dialog.iframe;\r\n        if (iframe && iframe.name == \"attack-monster\") {\r\n            var e = {param:{}, group:[], state:{}};\r\n            e.param.preset = this.setting.preset,\r\n            e.param.count = this.setting.count,\r\n            e.param.interval = this.setting.interval,\r\n            e.param.precheck = this.setting.precheck,\r\n            e.param.energy = this.setting.energy,\r\n            e.param.quintic = this.setting.quintic,\r\n            e.state.counter = this.state.counter,\r\n            e.state.running = this.state.running;\r\n\r\n            for(var c of this.config) {\r\n                var s = this.setting.group.find(e=>e.id == c.id)\r\n                var t = {id:c.id, text: c.text, cmin: c.cmin, cmax: c.cmax, selected: s ? s.selected : !1, min: s ? s.min: c.cmin, max: s ? s.max : c.cmax}\r\n                e.group.push(t)\r\n            }\r\n            iframe.contentWindow.render(e);\r\n        }\r\n    },\r\n\r\n    start() {\r\n        if (!this.state.running && this.setting.count) {\r\n            this.state.running = !0, this.state.counter = 0, \r\n            this._start(),\r\n            this._onTimer(),\r\n            this._update();\r\n        }\r\n    },\r\n\r\n    stop() {\r\n        if (this.state.running) {\r\n            this.state.running = !1,\r\n            this._stop(), \r\n            this._update()\r\n        }\r\n    },\r\n\r\n    apply(s) {\r\n        \/\/\u53c2\u6570\u4fee\u6b63\r\n        s.preset = s.preset >= 1 && s.preset <= 9 ? s.preset : 9;\r\n        s.count = s.count > 0 ? s.count : 0;\r\n        s.interval = s.interval >= 0 ? s.interval : 1;\r\n        s.group.forEach(e=>{\r\n            if (e.min > e.max) {\r\n                var n = e.max\r\n                e.max = e.min, e.min = n\r\n            }          \r\n        })\r\n\r\n        \/\/\u53c2\u6570\u66f4\u65b0\r\n        var o = this.setting.interval; \r\n        this.setting = s;\r\n\r\n        \/\/\u91cd\u7f6e\u5b9a\u65f6\u5668\r\n        this.setting.interval != o && this.timer && (this._stop(), this._start()) \r\n        this._update();\r\n    },\r\n\r\n    async init() {\r\n        await this._load()\r\n        this.state.running && this._start()\r\n    },\r\n\r\n    free() {\r\n        this._stop()\r\n    },\r\n\r\n    open() {\r\n        helper.dialog.open({name:\"attack-monster\", width:515, height:195+this.config.length*30, html:this.html});\r\n        this._render();\r\n    }\r\n}\r\n\r\nhelper.pro.attackMonster.html= String.raw\r\n`<html charset=\"UTF-8\">\r\n<head>\r\n<style>\r\n    body{line-height:30px; vertical-align:top; font-size:14px; font-family:\"Helvetica\",\"Lucida Console\",\"Microsoft soft\";}\r\n    h3{display:block; margin-top:12px; margin-bottom:8px; text-align:center; width:100%}\r\n    label{margin-left:2px; margin-right:2px;}\r\n    label.caption{display:inline-block; width:80px;}\r\n    span{margin-left:20px; margin-right:0px;}\r\n    input{color:#333;border:1px solid #999; border-radius:3px; outline-style:none; margin-right:12px; padding-top:2px; height:20px;}\r\n    input[type=\"checkbox\"]{margin-right:1px; vertical-align:top; margin-top:8px; width:14px; height:14px;}\r\n    select{color:#333; border:1px solid #999; border-radius:4px; outline-style:none; margin-left:0px; padding-top:1px; height:20px; }\r\n    button{border:1px solid #999; border-radius:3px; outline-style:none; text-align:center; margin-top:0px; width:60px; height:22px;}\r\n    button:hover{background-color:#ccc;} button:focus{background-color:#ccc;} button:active{transform: translateY(1px);}\r\n    input::-webkit-input-placeholder{color: #aaa;}\r\n    #counter{display:inline-block; color:green; width:130px;}\r\n    #state{margin-left:10px; margin-top:8px; text-align:center; height:20px}\r\n    #action{margin-left:145px; margin-top:8px; text-align:center; width:80px;}\r\n    div.panel{border:1px solid silver; border-radius:6px; margin:8px; padding:4px; padding-left:12px; box-shadow: 3px 3px 6px gray;}\r\n    .combo-box{display:inline-block; position:relative;} .combo-list{width:70px;} .combo-edit{position:absolute; padding-top:1px; width:50px; height:18px; left:1px; top:1px; border:0px;}\r\n<\/style>\r\n<\/script>      \r\n<script>\r\n    function $(a) {\r\n        return a && '#'==a[0] && document.getElementById(a.substring(1))\r\n    }\r\n\r\n    function editchange(edit) {\r\n        edit.setAttribute(\"value\", Number(edit.value.replace('\u6b21','').replace('\u79d2',''))); \r\n        apply();   \r\n    }\r\n\r\n    function listchange(list) {\r\n        var edit = list.parentNode.children[\"edit\"];\r\n        var i = list.selectedIndex;\r\n        edit.value = list.options[i].innerText;\r\n        edit.setAttribute(\"value\", list.options[i].value);\r\n        list.selectedIndex = 0;\r\n        apply();\r\n    }\r\n\r\n    function apply() {\r\n        var e = {group:[]};\r\n        e.preset = Number($(\"#preset\").value);\r\n        e.count = Number($(\"#count\").children[\"edit\"].getAttribute(\"value\"));\r\n        e.interval = Number($(\"#interval\").children[\"edit\"].getAttribute(\"value\"));\r\n        e.precheck = $(\"#precheck\").checked; \r\n        e.energy = $(\"#energy\").checked; \r\n        e.quintic = Number($(\"#quintic\").checked);\r\n        \r\n        for(var div of $(\"#group\").children) {\r\n            var g = {};\r\n            g.id = Number(div.id.substring(5)),\r\n            g.selected = div.children[\"selected\"].checked,\r\n            g.min = Number(div.children[\"min\"].value),\r\n            g.max = Number(div.children[\"max\"].value),\r\n            e.group.push(g) \r\n        }\r\n\r\n        parent.helper.pro.attackMonster.apply(e)\r\n    }\r\n\r\n    function _html(g) {\r\n        for (var options = \"\", i=g.cmin; i<=g.cmax; i++) options += '<option value=' + i + '>' + i + '\u7ea7<\/option>' \r\n        return '<div id=type-' + g.id + '>' +\r\n               '    <input type=\"checkbox\" name=\"selected\" onclick=\"apply()\"><label class=\"caption\">' + g.text + '<\/label>' + \r\n               '    <span><\/span><label>\u6700\u4f4e\u7b49\u7ea7\uff1a<\/label>' + \r\n               '    <select name=\"min\" class=\"combo-list\" onchange=\"apply()\">' + options + '<\/select>' + \r\n               '    <span><\/span><label>\u6700\u9ad8\u7b49\u7ea7\uff1a<\/label>' + \r\n               '    <select name=\"max\" class=\"combo-list\" onchange=\"apply()\">' + options + '<\/select>' +\r\n               '<\/div>'\r\n    }\r\n\r\n    function render(e) {\r\n        $(\"#preset\").value = e.param.preset;\r\n        $(\"#count\").children[\"edit\"].value = (99999 == e.param.count) ? '\u65e0\u9650\u6b21' : e.param.count + '\u6b21'\r\n        $(\"#count\").children[\"edit\"].setAttribute(\"value\",e.param.count)\r\n        $(\"#interval\").children[\"edit\"].value = e.param.interval + '\u79d2'\r\n        $(\"#interval\").children[\"edit\"].setAttribute(\"value\", e.param.interval)\r\n        $(\"#precheck\").checked = e.param.precheck\r\n        $(\"#energy\").checked = e.param.energy\r\n        $(\"#quintic\").checked = e.param.quintic\r\n        $(\"#counter\").innerText = e.state.counter ? '\u5df2\u653b\u51fb' + e.state.counter +'\u6b21' : ''\r\n        $(\"#counter\").style.color = e.state.counter >= e.param.count ? \"green\" : e.state.running ? \"purple\" : \"black\"\r\n        $(\"#state\").innerText = e.state.running ? \"\u8fd0\u884c\u4e2d\" : \"\u672a\u8fd0\u884c\"\r\n        $(\"#state\").style.backgroundColor = e.state.running ? \"greenyellow\" : \"#aaa\"\r\n        $(\"#state\").style.borderRadius = \"2px\"\r\n        $(\"#action\").innerText = e.state.running ? \"\u505c\u6b62\" : \"\u542f\u52a8\"\r\n\r\n        $(\"#group\").innerHTML = \"\";\r\n        for(var g of e.group) $(\"#group\").innerHTML += _html(g)\r\n        for(g of e.group) {\r\n            $(\"#type-\"+g.id).children[\"selected\"].checked= g.selected\r\n            $(\"#type-\"+g.id).children[\"min\"].value = g.min\r\n            $(\"#type-\"+g.id).children[\"max\"].value = g.max\r\n        }\r\n\r\n        $(\"#group\").style.height = 30 * e.group.length + 4\r\n    }\r\n\r\n    function action() {\r\n        var o = parent.helper.pro.attackMonster\r\n        o.state.running ? o.stop() : o.start()\r\n    }\r\n<\/script>\r\n<\/head>\r\n<body>\r\n    <h3>\u653b\u51fb\u9ed1\u6697\u654c\u519b<\/h3>\r\n    <div class=\"panel\">\r\n        <label>\u7f16\u961f\uff1a<\/label>\r\n        <select id=\"preset\" class=\"combo-list\" onchange=\"apply()\">\r\n            <option value=\"1\">\u7f16\u961f1<\/option>\r\n            <option value=\"2\">\u7f16\u961f2<\/option>\r\n            <option value=\"3\">\u7f16\u961f3<\/option>\r\n            <option value=\"4\">\u7f16\u961f4<\/option>\r\n            <option value=\"5\">\u7f16\u961f5<\/option>\r\n            <option value=\"6\">\u7f16\u961f6<\/option>\r\n            <option value=\"7\">\u7f16\u961f7<\/option>\r\n            <option value=\"8\">\u7f16\u961f8<\/option>\r\n            <option value=\"9\">\u81ea\u52a8<\/option>\r\n        <\/select>\r\n        <span><\/span><span><\/span><label>\u95f4\u9694\uff1a<\/label>\r\n        <div id=\"interval\" class=\"combo-box\">\r\n            <select name=\"list\" class=\"combo-list\" onchange=\"listchange(this)\">\r\n                <option style=\"display:none\"><\/option>\r\n                <option value=\"1\">1\u79d2<\/option>\r\n                <option value=\"30\">30\u79d2<\/option>\r\n                <option value=\"60\">60\u79d2<\/option>\r\n                <option value=\"300\">300\u79d2<\/option>\r\n                <option value=\"600\">600\u79d2<\/option>\r\n            <\/select>\r\n            <input name=\"edit\" class=\"combo-edit\" onchange=\"editchange(this)\">\r\n        <\/div>\r\n        <span><\/span><span><\/span><label>\u6b21\u6570\uff1a<\/label>\r\n        <div id=\"count\" class=\"combo-box\">\r\n            <select name=\"list\" class=\"combo-list\" onchange=\"listchange(this)\">\r\n                <option style=\"display:none\"><\/option>\r\n                <option value=\"1\">1\u6b21<\/option>\r\n                <option value=\"5\">5\u6b21<\/option>\r\n                <option value=\"10\">10\u6b21<\/option>\r\n                <option value=\"50\">50\u6b21<\/option>\r\n                <option value=\"99999\">\u65e0\u9650\u6b21<\/option>\r\n            <\/select>\r\n            <input name=\"edit\" class=\"combo-edit\" onchange=\"editchange(this)\">\r\n        <\/div>\r\n        <br>\r\n        <input type=\"checkbox\" id=\"precheck\" onclick=\"apply()\"><label>\u68c0\u67e5\u884c\u519b<\/label>\r\n        <span><\/span>\r\n        <input type=\"checkbox\" id=\"energy\" onclick=\"apply()\"><label>\u8865\u5145\u4f53\u529b<\/label>\r\n        <span><\/span>\r\n        <input type=\"checkbox\" id=\"quintic\" onclick=\"apply()\"><label>\u8fde\u7eed\u653b\u51fb<\/label>\r\n        <span><\/span>\r\n        <span id=\"counter\">\u5df2\u653b\u51fb\u602a\u726999999\u6b21<\/span>\r\n    <\/div>\r\n    <div id=\"group\" class=\"panel\">\r\n        <div>\r\n            <input type=\"checkbox\" name=\"selected\" onclick=\"apply()\"><label class=\"caption\">\u9ed1\u6697\u9646\u519b<\/label>\r\n            <span><\/span><label>\u6700\u4f4e\u7b49\u7ea7\uff1a<\/label>\r\n            <select name=\"min\" class=\"combo-list\" onchange=\"apply()\">\r\n                <option value=\"67\">67\u7ea7<\/option>\r\n            <\/select>\r\n            <span><\/span><label>\u6700\u9ad8\u7b49\u7ea7\uff1a<\/label>\r\n            <select name=\"max\" class=\"combo-list\" onchange=\"apply()\">\r\n                <option value=\"67\">67\u7ea7<\/option>\r\n            <\/select>\r\n        <\/div>\r\n    <\/div>\r\n    <span id=\"state\">\u672a\u8fd0\u884c<\/span>\r\n    <button id=\"action\" onclick=\"action()\">\u542f\u52a8<\/button>\r\n<\/body>\r\n<\/html>`\r\n\r\n\r\n\/\/-------------------------------------------------------------------------------------------------\r\n\/\/\u81ea\u52a8\u53d1\u8d77\u96c6\u7ed3\r\nhelper.pro.createAssembly && helper.pro.createAssembly.free()\r\nhelper.pro.createAssembly = {\r\n    setting: {\r\n        group:[\r\n            {id: 44, selected: 1, min: 10, max: 10},\r\n            {id: 9100, selected: 0, min: 5, max: 5},\r\n            {id: 6, selected: 0, min: 10, max: 10}\r\n        ], \r\n\r\n\/*  \u56db\u56fd\r\n    config: [\r\n        {type:9024, pt:3, active:!0, name:\"Hammer\", text:\"\u6218\u9524-4000\", relative: 1, min:-70, max:0, step:10},\r\n        {type:9032, pt:3, active:!0, name:\"Pioneer\", text:\"\u9ed1\u6697\u7cbe\u536b\", relative: 0, min:1, max:5, step:1},\r\n        {type:6, pt:4, active:!0, name:\"Rattat\", text:\"\u7231\u5fc3\u7830\u7830\", relative: 1, min:-70, max:0, step:10}\r\n    ],\r\n\r\n    setting: {\r\n        group:[\r\n            {type:9024, selected:1, min:0, max:0},\r\n            {type:9032, selected:0, min:5, max:5},\r\n            {type:6, selected:0, min:0, max:0}\r\n        ], \r\n*\/\r\n        preset:1, \r\n        count:1, \r\n        interval:1, \r\n        precheck:1,\r\n        energy:0\r\n    },\r\n\r\n    state:{counter:0, lasttime:0, running:!1},   \r\n\r\n    get config() {\r\n        var m = __require(\"WorldMonsterModel\").WorldMonsterModel.Instance\r\n        var D = __require(\"ActivityController\").ActivityController.Instance\r\n        var C = __require(\"WorldMapMonsterSearchComponentNew\").default\r\n        var u = __require(\"GameTools\")\r\n        var v = __require(\"KVKTools\").default\r\n        var l = __require(\"LocalManager\")\r\n        var y = __require(\"TableManager\")\r\n        var N = __require(\"TableName\")\r\n        var a = [], o = new C, cmin, cmax, step, text, type\r\n    \r\n        \/\/\u5907\u4efd\u4e0a\u4e0b\u6587\r\n        var b = Object.assign({}, m)\r\n\r\n        m.resetData()\r\n        o._thorScienceMonsterBuff = o.getThorScienceMonsterBuff()\r\n        o.init()\r\n\r\n        \/\/\u6dfb\u52a0\u96c6\u7ed3\u914d\u7f6e\r\n        m.assembleMonsterList.forEach(e=>{\r\n            var i = y.TABLE.getTableDataById(\"monster_group\", String(e.id)).search_show_kvk   \r\n            if (v.judgeMonsterStar(i)) {   \/\/\u9ed1\u6697\u7cbe\u536b\r\n                cmin = 1\r\n                cmax = 5\r\n                step = 1\r\n                type = 3\r\n            }\r\n            else if (e.id == u.default.getDataConfigData(941304)) {   \/\/\u4ff1\u661f-4000\r\n                o.setThorScienceMonsterSearchLevel()\r\n                cmin = o._minLevel\r\n                cmax = o._maxLevel\r\n                mtype = 9\r\n                step = 1\r\n                type = 9\r\n            }\r\n            else {   \/\/\u6218\u9524-4000\r\n                cmin = 10\r\n                cmax = parseInt(UserData.Level \/ 10) * 10\r\n                step = 10\r\n                type = 3\r\n            }\r\n            text = l.LOCAL.getText(e.name)\r\n            a.push({id: e.id, type: type, name: e.name, text: text, order: e.order, cmin: cmin, cmax: cmax, step: step}) \r\n        })\r\n\r\n        \/\/\u7231\u5fc3\u7830\u7830\u6d3b\u52a8\r\n        if (D.getLimitHammerBossExchangeActivityId(\"4\", !0) > 0) {\r\n            var s = y.TABLE.getTableDataById(N.TableName.MONSTER_GROUP, \"6\")\r\n            cmin = 10\r\n            cmax = parseInt(UserData.Level \/ 10) * 10\r\n            step = 10\r\n            text = l.LOCAL.getText(s.name)\r\n            type = 4\r\n            a.push({id: s.id, type: type, name: s.name, text: text, order: s.order, cmin: cmin, cmax: cmax, step: step})\r\n        }\r\n\r\n        \/\/\u8fd8\u539f\u4e0a\u4e0b\u6587\r\n        Object.assign(m, b)\r\n        return a\r\n    },\r\n    \r\n    _march(ti) {\r\n        var context = helper.battle.backup()\r\n        try {\r\n            \/\/\u96c6\u7ed3, \u51fa\u5f81\r\n            var wma = new(__require(\"NWorldMapAssemblyEnemyComponent\").default)\r\n            Object.assign(wma, {tileInfo:ti}).StartAssembly(null, 0)\r\n            return helper.battle.setup(this.setting.preset, 9999) && helper.battle.march()   \r\n        }\r\n        finally {\r\n            helper.battle.restore(context)\r\n        }\r\n    },\r\n\r\n    async _assembly(p) {\r\n        var wmc = __require(\"NWorldMapController\").default.instance\r\n        var ti = (wmc.updateTileInfo(p, 0), wmc.getTileInfoByCoord(p.x, p.y, p.k, 0));\r\n        if (ti && await helper.battle.mutex.acquire(2000) ) {\r\n            try {\r\n                \/\/\u96c6\u7ed3, \u51fa\u5f81\r\n                return await this._march(ti)\r\n            }\r\n            finally {\r\n                helper.battle.mutex.release()    \r\n            }\r\n        }\r\n    },\r\n\r\n    \/*\r\n      type: 6-\u7231\u5fc3\u7830\u7830\r\n           44-\u6218\u9524-4000\r\n         9100-\u4ff1\u661f-4000\r\n             \r\n    *\/ \r\n    _search(task) {\r\n        return send(RequestId.WORLD_SEARCH_MONSTER, {\r\n                        minLevel: task.min,\r\n                        maxLevel: task.max,\r\n                        groupType: task.id,\r\n                        pointType: task.type})\r\n    },\r\n\r\n    \/\/\u8865\u5145\u4f53\u529b\r\n    _charge() {\r\n        if (this.setting.energy) {\r\n            for(var e of UserData.getItemList()) {\r\n                if (6 === e.Data.type && e.Amount > 0) {\r\n                    return send(RequestId.ITEM_USE, {amount:1, itemid:e.ItemId});\r\n                }\r\n            }\r\n        }\r\n        return 0 \r\n    },\r\n\r\n    \/\/\u4f53\u529b\u68c0\u67e5  \r\n    async _energy(task) {\r\n        \/\/\u8ba1\u7b97\u4efb\u52a1\u4f53\u529b\r\n        var y = __require(\"TableManager\").TABLE.getTableDataById(\"monster_group\", task.id.toString())\r\n          , t = __require(\"FWSTool\").Obj.getPropertyByNames(y, 0, \"cost_energy\")\r\n          , s = UserData.getEnergy(1).Point;\r\n        return (t <= s ? 1 : await this._charge() ? 2 : 0)\r\n    },\r\n\r\n    \/\/\u7f16\u961f\u68c0\u67e5\r\n    _precheck() {\r\n        \/\/\u5355\u5175\u68c0\u67e5(\u542b\u673a\u7532)\r\n        if (0 == this.setting.preset || 9 == this.setting.preset) {\r\n            var one = __require(\"GameTools\").default.getAttackerMyArmys().sort((t, e)=>{return t.ArmyData.power - e.ArmyData.power})[0];\r\n            if (!one || (one.battleMechaData && !helper.battle.mechaOk(one.battleMechaData.mechaId)))\r\n                return 0\r\n        }\r\n        \/\/\u9884\u8bbe\u7f16\u961f\r\n        if (0 < this.setting.preset && this.setting.preset < 9 && this.setting.precheck) { \r\n            var march = UserData.PresetMarchData.getPreMarchByIndex(this.setting.preset-1)\r\n            if (!march) return 0  \r\n\r\n            \/\/\u68c0\u67e5\u82f1\u96c4\r\n            var heros = __require(\"HeroController\").HeroController.getInstance().getHaveHeroCanMarchList()\r\n            for (var i = 0; i < march.HeroIds.length; ++i) if (!heros.find((e)=>{return e._id == march.HeroIds[i]})) return 0\r\n \r\n            \/\/\u68c0\u67e5\u58eb\u5175\r\n            var armys = __require(\"GameTools\").default.getAttackerMyArmys()\r\n            for (var group = {}, i = 0; i < armys.length; ++i) {var n=armys[i].ArmyData.id; group[n] = (group[n] ? group[n] : 0) + 1}\r\n            for (var e of march.Armys) {\r\n                if (e && e.ArmyId && e.isMecha && !helper.battle.mechaOk(e.mechaId)) return 0\r\n                if (e && e.ArmyId && !e.isMecha && (!group[e.ArmyId] || (group[e.ArmyId] -= e.Num)<0)) return 0\r\n            }\r\n        }\r\n        return 1\r\n    },\r\n\r\n    async _execute(task) {\r\n        \/\/\u68c0\u67e5\u6b21\u6570\u3001\u884c\u519b\u961f\u5217\u3001\u82f1\u96c4\u53ca\u58eb\u5175\u3001\u4f53\u529b\r\n        if (task && UserData.myMarchNum < UserData.myMarchNumMAX && this._precheck()) {\r\n            \/\/\u68c0\u67e5\u4f53\u529b\r\n            switch (await this._energy(task)) {\r\n                case 2: \r\n                    \/\/\u81ea\u52a8\u8865\u5145\u4f53\u529b,\u91cd\u65b0\u6267\u884c\u4efb\u52a1 \r\n                    return this._execute(task)\r\n                case 1: \r\n                    \/\/\u4f53\u529b\u68c0\u67e5\u901a\u8fc7,\u67e5\u627e\u5e76\u53d1\u8d77\u96c6\u7ed3 \r\n                    var o = await this._search(task)\r\n                    o = o && o.point && await this._assembly(o.point)\r\n                    o && o.marchInfo && (this.state.counter++, this.state.lasttime=o.marchInfo.marchStartTime, this._update())\r\n                    o && o.marchInfo || await sleep(5000)\r\n                case 0:\r\n            };\r\n        }\r\n    },\r\n\r\n    _newTask() {       \r\n        for (var a = [], s, i = 0; i < this.config.length; ++i) {\r\n            s = this.setting.group.find(e => e.id == this.config[i].id)\r\n            s && s.selected && s.min && s.max && a.push({id: s.id, type: this.config[i].type, min: s.min, max: s.max})\r\n        }\r\n        return a[Math.floor(Math.random()*a.length)]\r\n    },\r\n\r\n    async _onTimer() {\r\n        if (this.state.counter < this.setting.count && !this.busy) {\r\n            try {this.busy = 1, await this._execute(this._newTask())} finally{this.busy = 0}\r\n        }\r\n    },\r\n\r\n    _start() {\r\n        this.timer || (this.timer = setInterval(this._onTimer.bind(this), this.setting.interval*1000))\r\n    },\r\n\r\n    _stop() {\r\n        this.timer && (clearInterval(this.timer), this.timer = 0)\r\n    },\r\n    \r\n    _update() {\r\n        this._save()\r\n        this._render()\r\n    },\r\n\r\n    _save() {\r\n        setItem(\"create-assembly\", JSON.stringify({setting:this.setting, state:this.state}))        \r\n    },\r\n\r\n    async _load() {\r\n        var o = await getItem(\"create-assembly\")\r\n        o && (o = JSON.parse(o)) && (this.setting = o.setting, this.state = o.state)\r\n    },\r\n\r\n    _render() {\r\n        var iframe = helper.dialog.iframe;\r\n        if (iframe && iframe.name == \"create-assembly\") {\r\n            var e = {param:{}, group:[], state:{}};\r\n            e.param.preset = this.setting.preset,\r\n            e.param.count = this.setting.count,\r\n            e.param.interval = this.setting.interval,\r\n            e.param.energy = this.setting.energy,\r\n            e.param.precheck = this.setting.precheck,\r\n            e.state.counter = this.state.counter,\r\n            e.state.running = this.state.running;\r\n\r\n            for(var c of this.config) {\r\n                var s = this.setting.group.find(e=>e.id == c.id)\r\n                var t = {id:c.id, text: c.text, cmin: c.cmin, cmax: c.cmax, step: c.step, selected: s ? s.selected : !1, min: s ? s.min: c.cmin, max: s ? s.max : c.cmax}\r\n                e.group.push(t)\r\n            }\r\n\r\n            iframe.contentWindow.render(e)\r\n        }\r\n    },\r\n\r\n    start() {\r\n        if (!this.state.running && this.setting.count) {\r\n            this.state.running = !0, this.state.counter = 0, \r\n            this._start(),\r\n            this._onTimer(),\r\n            this._update();\r\n        }\r\n    },\r\n\r\n    stop() {\r\n        if (this.state.running) {\r\n            this.state.running = !1,\r\n            this._stop(), \r\n            this._update()\r\n        }\r\n    },\r\n\r\n    apply(s) {\r\n        \/\/\u53c2\u6570\u4fee\u6b63\r\n        s.preset = s.preset >= 1 && s.preset <= 9 ? s.preset : 9;\r\n        s.count = s.count > 0 ? s.count : 0;\r\n        s.interval = s.interval >= 0 ? s.interval : 1;\r\n        s.group.forEach(e=>{\r\n            if (e.min > e.max) {\r\n                var n = e.max\r\n                e.max = e.min, e.min = n\r\n            }          \r\n        })\r\n\r\n        \/\/\u53c2\u6570\u66f4\u65b0\r\n        var o = this.setting.interval\r\n        this.setting = s\r\n        \r\n        \/\/\u91cd\u7f6e\u8ba1\u65f6\u5668\r\n        this.setting.interval != o && this.timer && (this._stop(), this._start()) \r\n        this._update();\r\n    },\r\n\r\n    async init() {\r\n        await this._load()\r\n        this.state.running && this._start()\r\n    },\r\n\r\n    free() {\r\n        this._stop()\r\n    },\r\n\r\n    open() {\r\n        helper.dialog.open({name:\"create-assembly\", width:515, height:190+this.config.length*30, html:this.html});\r\n        this._render();\r\n    }\r\n}\r\n\r\nhelper.pro.createAssembly.html = String.raw \r\n`<html charset=\"UTF-8\">\r\n<head>\r\n<style>\r\n    body{line-height:30px; vertical-align:top; font-size:14px; font-family:\"Helvetica\",\"Lucida Console\",\"Microsoft soft\";}\r\n    h3{display:block; margin-top:12px; margin-bottom:8px; text-align:center; width:100%}\r\n    label{margin-left:2px; margin-right:2px;}\r\n    label.caption{display:inline-block; width:80px;}\r\n    span{margin-left:20px; margin-right:0px;}\r\n    input{color:#333;border:1px solid #999; border-radius:3px; outline-style:none; margin-right:12px; padding-top:2px; height:20px;}\r\n    input[type=\"checkbox\"]{margin-right:1px; vertical-align:top; margin-top:8px; width:14px; height:14px;}\r\n    select{color:#333; border:1px solid #999; border-radius:4px; outline-style:none; margin-left:0px; padding-top:1px; height:20px; }\r\n    button{border:1px solid #999; border-radius:3px; outline-style:none; text-align:center; margin-top:0px; width:60px; height:22px;}\r\n    button:hover{background-color:#ccc;} button:focus{background-color:#ccc;} button:active{transform: translateY(1px);}\r\n    input::-webkit-input-placeholder{color: #aaa;}\r\n    #counter{display:inline-block; color:green; margin-left:123px; width:130px;}\r\n    #state{margin-left:10px; margin-top:8px; text-align:center; height:20px}\r\n    #action{margin-left:145px; margin-top:8px; text-align:center; width:80px;}\r\n    div.panel{border:1px solid silver; border-radius:6px; margin:8px; padding:4px; padding-left:12px; box-shadow: 3px 3px 6px gray;}\r\n    .combo-box{display:inline-block; position:relative;} .combo-list{width:70px;} .combo-edit{position:absolute; padding-top:1px; width:50px; height:18px; left:1px; top:1px; border:0px;}\r\n<\/style>\r\n<\/script>      \r\n<script>\r\n    function $(a) {\r\n        return a && '#'==a[0] && document.getElementById(a.substring(1))\r\n    }\r\n\r\n    function editchange(edit) {\r\n        edit.setAttribute(\"value\", Number(edit.value.replace('\u6b21','').replace('\u79d2',''))); \r\n        apply();   \r\n    }\r\n\r\n    function listchange(list) {\r\n        var edit = list.parentNode.children[\"edit\"];\r\n        var i = list.selectedIndex;\r\n        edit.value = list.options[i].innerText;\r\n        edit.setAttribute(\"value\", list.options[i].value);\r\n        list.selectedIndex = 0;\r\n        apply();\r\n    }\r\n\r\n    function apply() {\r\n        var e = {group:[]};\r\n        e.preset = Number($(\"#preset\").value);\r\n        e.count = Number($(\"#count\").children[\"edit\"].getAttribute(\"value\"));\r\n        e.interval = Number($(\"#interval\").children[\"edit\"].getAttribute(\"value\"));\r\n        e.precheck = $(\"#precheck\").checked; \r\n        e.energy = $(\"#energy\").checked; \r\n        \r\n        for(var div of $(\"#group\").children) {\r\n            var g = {};\r\n            g.id = Number(div.id.substring(5)),\r\n            g.selected = div.children[\"selected\"].checked,\r\n            g.min = Number(div.children[\"min\"].value),\r\n            g.max = Number(div.children[\"max\"].value),\r\n            e.group.push(g) \r\n        }\r\n\r\n        parent.helper.pro.createAssembly.apply(e)\r\n    }\r\n\r\n    function _html(g) {\r\n        for (var options = \"\", i=g.cmin; i<=g.cmax; i=i+g.step) options += '<option value=' + i + '>' + i + '\u7ea7<\/option>' \r\n        return '<div id=type-' + g.id + '>' +\r\n               '    <input type=\"checkbox\" name=\"selected\" onclick=\"apply()\"><label class=\"caption\">' + g.text + '<\/label>' + \r\n               '    <span><\/span><label>\u6700\u4f4e\u7b49\u7ea7\uff1a<\/label>' + \r\n               '    <select name=\"min\" class=\"combo-list\" onchange=\"apply()\">' + options + '<\/select>' + \r\n               '    <span><\/span><label>\u6700\u9ad8\u7b49\u7ea7\uff1a<\/label>' + \r\n               '    <select name=\"max\" class=\"combo-list\" onchange=\"apply()\">' + options + '<\/select>' +\r\n               '<\/div>'\r\n    }\r\n\r\n    function render(e) {\r\n        for (var html=\"\", i=0; i<e.group.length; ++i) html = html.concat(_html(e.group[i]))\r\n        $(\"#group\").innerHTML = html\r\n        \r\n        $(\"#preset\").value = e.param.preset;\r\n        $(\"#count\").children[\"edit\"].value = (99999 == e.param.count) ? '\u65e0\u9650\u6b21' : e.param.count + '\u6b21';\r\n        $(\"#count\").children[\"edit\"].setAttribute(\"value\",e.param.count);\r\n        $(\"#interval\").children[\"edit\"].value = e.param.interval + '\u79d2';\r\n        $(\"#interval\").children[\"edit\"].setAttribute(\"value\", e.param.interval);\r\n        $(\"#energy\").checked = e.param.energy;\r\n        $(\"#precheck\").checked = e.param.precheck;\r\n        $(\"#counter\").innerText = e.state.counter ? '\u5df2\u53d1\u8d77' + e.state.counter +'\u6b21\u96c6\u7ed3' : ''\r\n        $(\"#counter\").style.color = e.state.counter >= e.param.count ? \"green\" : e.state.running ? \"purple\" : \"black\"\r\n        $(\"#state\").innerText = e.state.running ? \"\u8fd0\u884c\u4e2d\" : \"\u672a\u8fd0\u884c\"\r\n        $(\"#state\").style.backgroundColor = e.state.running ? \"greenyellow\" : \"#aaa\"\r\n        $(\"#state\").style.borderRadius = \"2px\"\r\n        $(\"#action\").innerText = e.state.running ? \"\u505c\u6b62\" : \"\u542f\u52a8\";\r\n\r\n        for(var g of e.group) {\r\n            var children = $(\"#type-\"+g.id).children\r\n            children[\"selected\"].checked= g.selected\r\n            children[\"min\"].value = g.min\r\n            children[\"max\"].value = g.max\r\n        }\r\n    }\r\n\r\n    function action() {\r\n        var o = parent.helper.pro.createAssembly\r\n        o.state.running ? o.stop() : o.start()\r\n    }\r\n<\/script>\r\n<\/head>\r\n<body>\r\n    <h3>\u81ea\u52a8\u53d1\u8d77\u96c6\u7ed3<\/h3>\r\n    <div class=\"panel\">\r\n        <label>\u7f16\u961f\uff1a<\/label>\r\n        <select id=\"preset\" class=\"combo-list\" onchange=\"apply()\">\r\n            <option value=\"1\">\u7f16\u961f1<\/option>\r\n            <option value=\"2\">\u7f16\u961f2<\/option>\r\n            <option value=\"3\">\u7f16\u961f3<\/option>\r\n            <option value=\"4\">\u7f16\u961f4<\/option>\r\n            <option value=\"5\">\u7f16\u961f5<\/option>\r\n            <option value=\"6\">\u7f16\u961f6<\/option>\r\n            <option value=\"7\">\u7f16\u961f7<\/option>\r\n            <option value=\"8\">\u7f16\u961f8<\/option>\r\n            <option value=\"9\">\u81ea\u52a8<\/option>\r\n        <\/select>\r\n        <span><\/span><span><\/span><label>\u95f4\u9694\uff1a<\/label>\r\n        <div id=\"interval\" class=\"combo-box\">\r\n            <select name=\"list\" class=\"combo-list\" onchange=\"listchange(this)\">\r\n                <option style=\"display:none\"><\/option>\r\n                <option value=\"1\">1\u79d2<\/option>\r\n                <option value=\"30\">30\u79d2<\/option>\r\n                <option value=\"60\">60\u79d2<\/option>\r\n                <option value=\"300\">300\u79d2<\/option>\r\n                <option value=\"600\">600\u79d2<\/option>\r\n            <\/select>\r\n            <input name=\"edit\" class=\"combo-edit\" onchange=\"editchange(this)\">\r\n        <\/div>\r\n        <span><\/span><span><\/span><label>\u6b21\u6570\uff1a<\/label>\r\n        <div id=\"count\" class=\"combo-box\">\r\n            <select name=\"list\" class=\"combo-list\" onchange=\"listchange(this)\">\r\n                <option style=\"display:none\"><\/option>\r\n                <option value=\"1\">1\u6b21<\/option>\r\n                <option value=\"5\">5\u6b21<\/option>\r\n                <option value=\"10\">10\u6b21<\/option>\r\n                <option value=\"50\">50\u6b21<\/option>\r\n                <option value=\"99999\">\u65e0\u9650\u6b21<\/option>\r\n            <\/select>\r\n            <input name=\"edit\" class=\"combo-edit\" onchange=\"editchange(this)\">\r\n        <\/div>\r\n        <br>\r\n        <input type=\"checkbox\" id=\"precheck\" onclick=\"apply()\"><label>\u68c0\u67e5\u884c\u519b<\/label>\r\n        <span><\/span>\r\n        <input type=\"checkbox\" id=\"energy\" onclick=\"apply()\"><label>\u8865\u5145\u4f53\u529b<\/label>\r\n        <span><\/span>\r\n        <span id=\"counter\">\u5df2\u53d1\u8d7799999\u6b21\u96c6\u7ed3<\/span>\r\n    <\/div>\r\n    <div id=\"group\" class=\"panel\">\r\n        <div>\r\n            <input type=\"checkbox\" name=\"selected\" onclick=\"apply()\"><label class=\"caption\">\u6218\u9524-4000<\/label>\r\n            <span><\/span><label>\u6700\u4f4e\u7b49\u7ea7\uff1a<\/label>\r\n            <select name=\"min\" class=\"combo-list\" onchange=\"apply()\">\r\n                <option value=\"67\">67\u7ea7<\/option>\r\n            <\/select>\r\n            <span><\/span><label>\u6700\u9ad8\u7b49\u7ea7\uff1a<\/label>\r\n            <select name=\"max\" class=\"combo-list\" onchange=\"apply()\">\r\n                <option value=\"67\">67\u7ea7<\/option>\r\n            <\/select>\r\n        <\/div>\r\n    <\/div>\r\n    <span id=\"state\">\u672a\u8fd0\u884c<\/span>\r\n    <button id=\"action\" onclick=\"action()\">\u542f\u52a8<\/button>\r\n<\/body>\r\n<\/html>`\r\n\r\n\r\n\/\/-------------------------------------------------------------------------------------------------\r\n\/\/\u81ea\u52a8\u62ef\u6551\u96be\u6c11\r\nhelper.pro.helpRefugee && helper.pro.helpRefugee.free()\r\nhelper.pro.helpRefugee = {\r\n    setting: { \r\n       preset:1, \r\n       count:1, \r\n       interval:1, \r\n       precheck:1,\r\n       energy:0\r\n    },\r\n\r\n    state:{counter:0, lasttime:0, running:!1},\r\n\r\n    _march(ti) {\r\n        var context = helper.battle.backup()\r\n        try {\r\n            \/\/\u96c6\u7ed3, \u51fa\u5f81\r\n            Object.assign(new (__require(\"NWorldUIRefugeeCamp\").default), {_tileInfo:ti, _id:ti.id}).startAssembly(null, 0)  \/\/ 0-\u666e\u901a\u96c6\u7ed3 1-\u8d85\u7ea7\u96c6\u7ed3\r\n            return helper.battle.setup(this.setting.preset, 9999) && helper.battle.march()   \r\n        }\r\n        finally {\r\n            helper.battle.restore(context)\r\n        }\r\n    },\r\n\r\n    async _assembly(p) {\r\n        var c = __require(\"NWorldMapController\").default.instance\r\n        var ti = (c.updateTileInfo(p, 0), c.getTileInfoByCoord(p.x, p.y, p.k, 0))\r\n        if (ti && await helper.battle.mutex.acquire(2000) ) {\r\n            try {\r\n                \/\/\u96c6\u7ed3, \u51fa\u5f81\r\n                return await this._march(ti)\r\n            }\r\n            finally {\r\n                helper.battle.mutex.release()    \r\n            }\r\n        }\r\n    },\r\n \r\n    async _point(p) {\r\n        var o = await send(RequestId.GET_WORLD_INFO, {\r\n                            x: p.x,\r\n                            y: p.y,\r\n                            k: UserData.ServerId,\r\n                            rid: 0,\r\n                            width: 14,\r\n                            height: 20,\r\n                            marchInfo: !1,\r\n                            viewLevel: 0})\r\n        return o && (o=o.pointList) && o.find(e=>{return e.x == p.x && e.y == p.y})\r\n    },\r\n \r\n    \/\/\u4f7f\u7528\u6c42\u6551\u4fe1\r\n    async _useLetter() {\r\n        var itemid = __require(\"GameDefine\").ActivityItem.refugeeLetter\r\n        var amount = UserData.getItemAmount(itemid)\r\n        if (amount > 0) {    \r\n            \/\/\u7981\u6b62\u8df3\u8f6c\r\n            var _doJump = __require(\"NWorldMapTodoController\").NWorldMapTodoController._instance.doJump\r\n            __require(\"NWorldMapTodoController\").NWorldMapTodoController._instance.doJump = (e)=>{e.click && _doJump(e)}\r\n            try {\r\n                return await send(RequestId.ITEM_USE, {amount:1, itemid:itemid})\r\n            }\r\n            finally {\r\n                \/\/\u6062\u590d\u8df3\u8f6c\r\n                __require(\"NWorldMapTodoController\").NWorldMapTodoController._instance.doJump = _doJump\r\n            }\r\n        }\r\n    },\r\n \r\n    \/\/\u67e5\u627e\u96be\u6c11\r\n    _search() {\r\n        return send(RequestId.GetRefugee, {})\r\n    },\r\n \r\n    \/\/\u8865\u5145\u4f53\u529b\r\n    _charge() {\r\n        for(var e of UserData.getItemList()) if (6 === e.Data.type && e.Amount > 0) return send(RequestId.ITEM_USE, {amount:1, itemid:e.ItemId})\r\n    },\r\n \r\n    \/\/\u4f53\u529b\u68c0\u67e5  \r\n    async _energy() {\r\n        \/\/\u8ba1\u7b97\u4efb\u52a1\u4f53\u529b\r\n        var y = __require(\"TableManager\").TABLE.getTableDataById(\"monster_group\", \"18\")  \/\/18-Refugee\r\n          , t = __require(\"FWSTool\").Obj.getPropertyByNames(y, 0, \"cost_energy\")\r\n          , s = UserData.getEnergy(1).Point;\r\n        return (t <= s ? 1 : this.setting.energy && await this._charge() ? 2 : 0)\r\n    },\r\n \r\n    \/\/\u7f16\u961f\u68c0\u67e5\r\n    _precheck() {\r\n        \/\/\u5355\u5175\u68c0\u67e5(\u542b\u673a\u7532)\r\n        if (0 == this.setting.preset || 9 == this.setting.preset) { \r\n            var one = __require(\"GameTools\").default.getAttackerMyArmys().sort((t, e)=>{return t.ArmyData.power - e.ArmyData.power})[0];\r\n            if (!one || (one.battleMechaData && !helper.battle.mechaOk(one.battleMechaData.mechaId)))\r\n                return 0\r\n        }\r\n        \/\/\u9884\u8bbe\u7f16\u961f\r\n        if (0 < this.setting.preset && this.setting.preset < 9 && this.setting.precheck) { \r\n            var march = UserData.PresetMarchData.getPreMarchByIndex(this.setting.preset-1)\r\n            if (!march) return 0  \r\n \r\n            \/\/\u68c0\u67e5\u82f1\u96c4\r\n            var heros = __require(\"HeroController\").HeroController.getInstance().getHaveHeroCanMarchList()\r\n            for (var i = 0; i < march.HeroIds.length; ++i) if (!heros.find((e)=>{return e._id == march.HeroIds[i]})) return 0\r\n \r\n            \/\/\u68c0\u67e5\u58eb\u5175\r\n            var armys = __require(\"GameTools\").default.getAttackerMyArmys()\r\n            for (var group = {}, i = 0; i < armys.length; ++i) {var n=armys[i].ArmyData.id; group[n] = (group[n] ? group[n] : 0) + 1}\r\n            for (var e of march.Armys) {\r\n                if (e && e.ArmyId && e.isMecha && !helper.battle.mechaOk(e.mechaId)) return 0\r\n                if (e && e.ArmyId && !e.isMecha && (!group[e.ArmyId] || (group[e.ArmyId] -= e.Num)<0)) return 0\r\n            }\r\n        }\r\n        return 1\r\n    },\r\n \r\n    async _execute() {\r\n        \/\/\u68c0\u67e5\u6b21\u6570\u3001\u884c\u519b\u961f\u5217\u3001\u82f1\u96c4\u53ca\u58eb\u5175\u3001\u4f53\u529b\r\n        if (UserData.myMarchNum < UserData.myMarchNumMAX && this._precheck()) {\r\n            \/\/\u68c0\u67e5\u4f53\u529b\r\n            switch (await this._energy()) {\r\n                case 2: \r\n                    \/\/\u81ea\u52a8\u8865\u5145\u4f53\u529b,\u91cd\u65b0\u6267\u884c\u4efb\u52a1\r\n                    return this._execute()\r\n                case 1: \r\n                    \/\/\u4f53\u529b\u68c0\u67e5\u901a\u8fc7,\u67e5\u627e\u96be\u6c11(\u4f7f\u7528\u96be\u6c11\u4fe1)\u5e76\u53d1\u8d77\u96c6\u7ed3 \r\n                    var o = await this._search()\r\n                    o && o.points && !o.points[0] && await this._useLetter() && (o = await this._search())\r\n                    o && o.points && (o=o.points[0]) && (o = await this._point(o)) && (o = await this._assembly(o))\r\n                    o && o.marchInfo && (this.state.counter++, this.state.lasttime=o.marchInfo.marchStartTime, this._update())\r\n                    o && o.marchInfo || sleep(5000)\r\n                case 0:\r\n            };\r\n        }\r\n    },\r\n \r\n    async _onTimer() {\r\n        if (this.state.counter < this.setting.count && !this.busy) {\r\n            try {this.busy = 1, await this._execute()} finally{this.busy = 0}\r\n        }\r\n    },\r\n \r\n    _start() {\r\n        this.timer || (this.timer = setInterval(this._onTimer.bind(this), this.setting.interval*1000))\r\n    },\r\n \r\n    _stop() {\r\n        this.timer && (clearInterval(this.timer), this.timer = 0)\r\n    },\r\n    \r\n    _update() {\r\n        this._save()\r\n        this._render()\r\n    },\r\n \r\n    _save() {\r\n        setItem(\"help-refugee\", JSON.stringify({setting:this.setting, state:this.state}))\r\n    },\r\n \r\n    async _load() {\r\n        var o = await getItem(\"help-refugee\")\r\n        o && (o = JSON.parse(o)) && (this.setting = o.setting, this.state = o.state)\r\n    },\r\n \r\n    _render() {\r\n        var iframe = helper.dialog.iframe;\r\n        if (iframe && iframe.name == \"help-refugee\") {\r\n            var e = {param:{}, state:{}};\r\n        \r\n            e.param.preset = this.setting.preset,\r\n            e.param.count = this.setting.count,\r\n            e.param.interval = this.setting.interval,\r\n            e.param.energy = this.setting.energy,\r\n            e.param.precheck = this.setting.precheck,\r\n            e.state.counter = this.state.counter,\r\n            e.state.running = this.state.running\r\n \r\n            iframe.contentWindow.render(e)\r\n        }\r\n    },\r\n \r\n    start() {\r\n        if (!this.state.running && this.setting.count) {\r\n            this.state.running = !0, this.state.counter = 0, \r\n            this._start(),\r\n            this._onTimer(),\r\n            this._update();\r\n        }\r\n    },\r\n \r\n    stop() {\r\n        if (this.state.running) {\r\n            this.state.running = !1,\r\n            this._stop(), \r\n            this._update()\r\n        }\r\n    },\r\n \r\n    apply(s) {\r\n        \/\/\u53c2\u6570\u4fee\u6b63\r\n        s.preset = s.preset >= 1 && s.preset <= 9 ? s.preset : 9\r\n        s.count = s.count > 0 ? s.count : 0\r\n        s.interval = s.interval >= 0 ? s.interval : 1\r\n \r\n        \/\/\u53c2\u6570\u66f4\u65b0\r\n        var o = this.setting.interval\r\n        this.setting = s\r\n        \r\n        \/\/\u91cd\u7f6e\u8ba1\u65f6\u5668\r\n        this.setting.interval != o && this.timer && (this._stop(), this._start()) \r\n        this._update()\r\n    },\r\n \r\n    async init() {\r\n        await this._load()\r\n        this.state.running && this._start()\r\n    },\r\n\r\n    free() {\r\n        this._stop()\r\n    },\r\n\r\n    open() {\r\n        helper.dialog.open({name:\"help-refugee\", width:520, height:172, html:this.html})\r\n        this._render()\r\n    }\r\n}\r\n\r\nhelper.pro.helpRefugee.html = String.raw \r\n`<html charset=\"UTF-8\">\r\n<head>\r\n<style>\r\n    body{line-height:30px; vertical-align:top; font-size:14px; font-family:\"Helvetica\",\"Lucida Console\",\"Microsoft soft\";}\r\n    h3{display:block; margin-top:12px; margin-bottom:8px; text-align:center; width:100%}\r\n    label{margin-left:2px; margin-right:2px;}\r\n    label.caption{display:inline-block; width:80px;}\r\n    span{margin-left:20px; margin-right:0px;}\r\n    input{color:#333;border:1px solid #999; border-radius:3px; outline-style:none; margin-right:12px; padding-top:2px; height:20px;}\r\n    input[type=\"checkbox\"]{margin-right:1px; vertical-align:top; margin-top:8px; width:14px; height:14px;}\r\n    select{color:#333; border:1px solid #999; border-radius:4px; outline-style:none; margin-left:0px; padding-top:1px; height:20px; }\r\n    button{border:1px solid #999; border-radius:3px; outline-style:none; text-align:center; margin-top:0px; width:60px; height:22px;}\r\n    button:hover{background-color:#ccc;} button:focus{background-color:#ccc;} button:active{transform: translateY(1px);}\r\n    input::-webkit-input-placeholder{color: #aaa;}\r\n    #counter{display:inline-block; color:green; margin-left:123px; width:130px;}\r\n    #state{margin-left:10px; margin-top:8px; text-align:center; height:20px}\r\n    #action{margin-left:145px; margin-top:8px; text-align:center; width:80px;}\r\n    div.panel{border:1px solid silver; border-radius:6px; margin:8px; padding:4px; padding-left:12px; box-shadow: 3px 3px 6px gray;}\r\n    .combo-box{display:inline-block; position:relative;} .combo-list{width:70px;} .combo-edit{position:absolute; padding-top:1px; width:50px; height:18px; left:1px; top:1px; border:0px;}\r\n<\/style>\r\n<\/script>      \r\n<script>\r\n    function $(a) {\r\n        return a && '#'==a[0] && document.getElementById(a.substring(1))\r\n    }\r\n\r\n    function editchange(edit) {\r\n        edit.setAttribute(\"value\", Number(edit.value.replace('\u6b21','').replace('\u79d2',''))); \r\n        apply();   \r\n    }\r\n\r\n    function listchange(list) {\r\n        var edit = list.parentNode.children[\"edit\"];\r\n        var i = list.selectedIndex;\r\n        edit.value = list.options[i].innerText;\r\n        edit.setAttribute(\"value\", list.options[i].value);\r\n        list.selectedIndex = 0;\r\n        apply();\r\n    }\r\n\r\n    function apply() {\r\n        var e = {group:[]};\r\n        e.preset = Number($(\"#preset\").value);\r\n        e.count = Number($(\"#count\").children[\"edit\"].getAttribute(\"value\"));\r\n        e.interval = Number($(\"#interval\").children[\"edit\"].getAttribute(\"value\"));\r\n        e.precheck = $(\"#precheck\").checked; \r\n        e.energy = $(\"#energy\").checked; \r\n\r\n        parent.helper.pro.helpRefugee.apply(e)\r\n    }\r\n\r\n    function render(e) {\r\n        $(\"#preset\").value = e.param.preset\r\n        $(\"#count\").children[\"edit\"].value = (99999 == e.param.count) ? '\u65e0\u9650\u6b21' : e.param.count + '\u6b21'\r\n        $(\"#count\").children[\"edit\"].setAttribute(\"value\",e.param.count)\r\n        $(\"#interval\").children[\"edit\"].value = e.param.interval + '\u79d2'\r\n        $(\"#interval\").children[\"edit\"].setAttribute(\"value\", e.param.interval)\r\n        $(\"#energy\").checked = e.param.energy\r\n        $(\"#precheck\").checked = e.param.precheck\r\n        $(\"#counter\").innerText = e.state.counter ? '\u5df2\u62ef\u6551\u96be\u6c11' + e.state.counter +'\u6b21' : ''\r\n        $(\"#counter\").style.color = e.state.counter >= e.param.count ? \"green\" : e.state.running ? \"purple\" : \"black\"\r\n        $(\"#state\").innerText = e.state.running ? \"\u8fd0\u884c\u4e2d\" : \"\u672a\u8fd0\u884c\"\r\n        $(\"#state\").style.backgroundColor = e.state.running ? \"greenyellow\" : \"#aaa\"\r\n        $(\"#state\").style.borderRadius = \"2px\"\r\n\r\n        $(\"#action\").innerText = e.state.running ? \"\u505c\u6b62\" : \"\u542f\u52a8\"\r\n    }\r\n\r\n    function action() {\r\n        var o = parent.helper.pro.helpRefugee\r\n        o.state.running ? o.stop() : o.start()\r\n    }\r\n<\/script>\r\n<\/head>\r\n<body>\r\n    <h3>\u81ea\u52a8\u62ef\u6551\u96be\u6c11<\/h3>\r\n    <div class=\"panel\">\r\n        <label>\u7f16\u961f\uff1a<\/label>\r\n        <select id=\"preset\" class=\"combo-list\" onchange=\"apply()\">\r\n            <option value=\"1\">\u7f16\u961f1<\/option>\r\n            <option value=\"2\">\u7f16\u961f2<\/option>\r\n            <option value=\"3\">\u7f16\u961f3<\/option>\r\n            <option value=\"4\">\u7f16\u961f4<\/option>\r\n            <option value=\"5\">\u7f16\u961f5<\/option>\r\n            <option value=\"6\">\u7f16\u961f6<\/option>\r\n            <option value=\"7\">\u7f16\u961f7<\/option>\r\n            <option value=\"8\">\u7f16\u961f8<\/option>\r\n            <option value=\"9\">\u81ea\u52a8<\/option>\r\n        <\/select>\r\n        <span><\/span><span><\/span><label>\u95f4\u9694\uff1a<\/label>\r\n        <div id=\"interval\" class=\"combo-box\">\r\n            <select name=\"list\" class=\"combo-list\" onchange=\"listchange(this)\">\r\n                <option style=\"display:none\"><\/option>\r\n                <option value=\"1\">1\u79d2<\/option>\r\n                <option value=\"30\">30\u79d2<\/option>\r\n                <option value=\"60\">60\u79d2<\/option>\r\n                <option value=\"300\">300\u79d2<\/option>\r\n                <option value=\"600\">600\u79d2<\/option>\r\n            <\/select>\r\n            <input name=\"edit\" class=\"combo-edit\" onchange=\"editchange(this)\">\r\n        <\/div>\r\n        <span><\/span><span><\/span><label>\u6b21\u6570\uff1a<\/label>\r\n        <div id=\"count\" class=\"combo-box\">\r\n            <select name=\"list\" class=\"combo-list\" onchange=\"listchange(this)\">\r\n                <option style=\"display:none\"><\/option>\r\n                <option value=\"1\">1\u6b21<\/option>\r\n                <option value=\"5\">5\u6b21<\/option>\r\n                <option value=\"10\">10\u6b21<\/option>\r\n                <option value=\"50\">50\u6b21<\/option>\r\n                <option value=\"99999\">\u65e0\u9650\u6b21<\/option>\r\n            <\/select>\r\n            <input name=\"edit\" class=\"combo-edit\" onchange=\"editchange(this)\">\r\n        <\/div>\r\n        <br>\r\n        <input type=\"checkbox\" id=\"precheck\" onclick=\"apply()\"><label>\u68c0\u67e5\u884c\u519b<\/label>\r\n        <span><\/span>\r\n        <input type=\"checkbox\" id=\"energy\" onclick=\"apply()\"><label>\u8865\u5145\u4f53\u529b<\/label>\r\n        <span><\/span>\r\n        <span id=\"counter\">\u5df2\u62ef\u6551\u96be\u6c1199999\u6b21<\/span>\r\n    <\/div>\r\n    <span id=\"state\">\u672a\u8fd0\u884c<\/span>\r\n    <button id=\"action\" onclick=\"action()\">\u542f\u52a8<\/button>\r\n<\/body>\r\n<\/html>`\r\n\r\n\r\n\/\/-------------------------------------------------------------------------------------------------\r\n\/\/\u81ea\u52a8\u52a0\u5165\u96c6\u7ed3\r\nhelper.pro.joinAssembly && helper.pro.joinAssembly.free()\r\nhelper.pro.joinAssembly = {\r\n    \/\/id=12 - \u6218\u9524\r\n    \/\/id=18 - \u96be\u6c11\u8425\r\n    \/\/id=74 - \u519b\u56e2\u636e\u70b9\r\n    \/\/id=86 - \u4ff1\u661f\r\n    config: [\r\n        {id:1, active:!0, name:\"Hammer\",      text:\"\u6218\u9524-4000\"},\r\n        {id:2, active:!0, name:\"RefugeeCamp\", text:\"\u96be\u6c11\u8425\"},\r\n        {id:3, active:!0, name:\"Legion\",      text:\"\u519b\u56e2\u636e\u70b9\"},\r\n        {id:4, active:!0, name:\"Allstar\",     text:\"\u4ff1\u661f-4000\"},\r\n        {id:5, active:!0, name:\"Rattat\",      text:\"\u7231\u5fc3\u7830\u7830\"},\r\n        {id:6, active:!0, name:\"Pioneer\",     text:\"\u9ed1\u6697\u7cbe\u536b\"}\r\n    ],\r\n\r\n    setting: [\r\n        {id:1, selected:!0, count:50, preset:0, delay:3, limit:!1, leader:\"\"},\r\n        {id:2, selected:!0, count:10, preset:0, delay:3, limit:!1, leader:\"\"},\r\n        {id:3, selected:!0, count:50, preset:0, delay:3, limit:!1, leader:\"\"},\r\n        {id:4, selected:!1, count:10, preset:0, delay:3, limit:!1, leader:\"\"},\r\n        {id:5, selected:!1, count:50, preset:0, delay:3, limit:!1, leader:\"\"},\r\n        {id:6, selected:!1, count:50, preset:0, delay:3, limit:!1, leader:\"\"}\r\n    ],\r\n\r\n    state: {counter:{}, running:!1},\r\n\r\n    deferred: [],\r\n\r\n    _id(asseml) {\r\n        if (asseml && 12 == asseml.pointType && (44 == asseml.itemId || 9024 == asseml.itemId)) return 1\r\n        if (asseml && 18 == asseml.pointType) return 2\r\n        if (asseml && 74 == asseml.pointType) return 3\r\n        if (asseml && 86 == asseml.pointType) return 4\r\n        if (asseml && 14 == asseml.pointType) return 5\r\n        if (asseml && 12 == asseml.pointType && (9132 == asseml.itemId)) return 6         \/\/9132:\u7cbe\u536b\r\n    },\r\n    \r\n    _join(asseml) {\r\n        var context = helper.battle.backup();\r\n        try {\r\n            var a = __require(\"AllianceAssemlbyPanelNew\").default\r\n            a.AttackCityinfo(__require(\"BattleData\").BattleType.PVP_Alliance_Assembly_Join, asseml)         \/\/\u52a0\u5165\r\n            var preset = this.setting.find(e=>e.id == this._id(asseml)).preset\r\n            var maxNum = asseml.rallyCapacity - asseml.rallySize\r\n            return helper.battle.setup(preset, maxNum) && helper.battle.march()   \/\/\u51fa\u5f81\r\n        }\r\n        finally {\r\n            helper.battle.restore(context)\r\n        }\r\n    },\r\n\r\n    \/\/\u7f16\u961f\u68c0\u67e5\r\n    _precheck(preset) {\r\n        \/\/\u5355\u5175\u68c0\u67e5(\u542b\u673a\u7532)\r\n        if (0 == preset || 9 == preset) { \r\n            var one = __require(\"GameTools\").default.getAttackerMyArmys().sort((t, e)=>{return t.ArmyData.power - e.ArmyData.power})[0];\r\n            if (!one || (one.battleMechaData && !helper.battle.mechaOk(one.battleMechaData.mechaId)))\r\n                return 0\r\n        }\r\n        \/\/\u9884\u8bbe\u7f16\u961f\r\n        if (0 < preset && preset < 9) { \r\n            var march = UserData.PresetMarchData.getPreMarchByIndex(preset-1)\r\n            if (!march) return 0  \r\n    \r\n            \/\/\u68c0\u67e5\u82f1\u96c4\r\n            var heros = __require(\"HeroController\").HeroController.getInstance().getHaveHeroCanMarchList()\r\n            for (var i = 0; i < march.HeroIds.length; ++i) if (!heros.find((e)=>{return e._id == march.HeroIds[i]})) return 0\r\n \r\n            \/\/\u68c0\u67e5\u58eb\u5175\r\n            var armys = __require(\"GameTools\").default.getAttackerMyArmys()\r\n            for (var group = {}, i = 0; i < armys.length; ++i) {var n=armys[i].ArmyData.id; group[n] = (group[n] ? group[n] : 0) + 1}\r\n            for (var e of march.Armys) {\r\n                if (e && e.ArmyId && e.isMecha && !helper.battle.mechaOk(e.mechaId)) return 0\r\n                if (e && e.ArmyId && !e.isMecha && (!group[e.ArmyId] || (group[e.ArmyId] -= e.Num)<0)) return 0\r\n            }\r\n        }\r\n        return 1\r\n    },\r\n\r\n    _distance(p1,p2) {\r\n        return Math.sqrt(Math.pow(p1.x-p2.x, 2) + Math.pow(p1.y-p2.y, 2))\r\n    },\r\n \r\n    _check(asseml) {\r\n        var MarchType = __require(\"WorldMapCommon\").MarchType\r\n\r\n        var i = asseml.marchType == MarchType.ALLIANCE_SUPER_RALLY_BATTLE ? \"61057\" : asseml.marchType == MarchType.ALLIANCE_RALLY_MIX_BATTLE ? \"770013\" : \"8005\"\r\n          , n = parseInt(__require(\"FWSTool\").Obj.getProperty(__require(\"TableManager\").TABLE.getTableDataById(\"data_config\", i), \"value\", \"5\"))  \/\/\u5141\u8bb8\u6210\u5458\u6570\r\n          , c = this.config.find(e=>e.id == this._id(asseml))                       \/\/\u914d\u7f6e\u9879\r\n          , s = this.setting.find(e=>e.id == this._id(asseml))                      \/\/\u8bbe\u7f6e\u9879\r\n          , k = this.state.counter && c && this.state.counter[c.name] ? this.state.counter[c.name] : 0   \/\/\u5df2\u52a0\u5165\u6b21\u6570\r\n          \r\n            \/\/\u68c0\u67e5\u884c\u519b\u6570\u91cf\u3001\u8bbe\u7f6e\u63a7\u5236\u3001\u53ca\u96c6\u7ed3\u672c\u8eab\r\n        return UserData.myMarchNum < UserData.myMarchNumMAX &&\r\n            c && c.active && s && s.selected &&  k < s.count && this._precheck(s.preset) &&\r\n            asseml.marchState == __require(\"WorldMapCommon\").MarchState.INIT &&\r\n            asseml.members.find(e=>e.uid == UserData.UID) == undefined && \r\n            asseml.members.length < n && \r\n            asseml.leaderName.includes(s.leader) &&\r\n            asseml.rallyCapacity - asseml.rallySize > 0 &&\r\n            (\r\n                !s.limit ||\r\n                this._distance(asseml.leaderPos, UserData._WorldCoord)<100 &&       \/\/\u672c\u4eba\u4e0e\u96c6\u7ed3\u53d1\u8d77\u8005\u8ddd\u79bb\r\n                this._distance(asseml.leaderPos, asseml.targetPos)<200              \/\/\u96c6\u7ed3\u53d1\u8d77\u8005\u4e0e\u76ee\u6807\u8ddd\u79bb\r\n            )\r\n    },\r\n\r\n    async _process() {\r\n        var AllianceAssemlData = __require(\"AllianceAssemlbyController\").default.getInstance().AllianceAssemlData\r\n\r\n        \/\/\u67e5\u627e\u5e76\u52a0\u5165\u96c6\u7ed3(\u5f02\u6b65\u5e76\u53d1\u63a7\u5236)\r\n        if (await helper.battle.mutex.acquire(2000)) {\r\n            try {\r\n                for(var asseml of AllianceAssemlData) {\r\n                    var i = this.deferred.indexOf(asseml.teamId)\r\n                    var o = i<0 && this._check(asseml) && await this._join(asseml)\r\n                    var c = o && this.config.find(e=>e.id == this._id(asseml))\r\n                    c && (this.state.counter[c.name] = this.state.counter[c.name] ? this.state.counter[c.name]+1 : 1, this._update())     \r\n                }\r\n            }\r\n            finally {\r\n                helper.battle.mutex.release()\r\n            }   \r\n        }\r\n    },\r\n\r\n    _onTimeout(teamId) {\r\n        \/\/\u4ece\u5ef6\u8fdf\u52a0\u5165\u5217\u8868\u6458\u9664\r\n        var i = this.deferred.indexOf(teamId)\r\n        i>=0 && this.deferred.splice(i,1)\r\n        this._process()\r\n    },\r\n\r\n    onAssemblyCreate(asseml) {\r\n        console.log(\"\u6536\u5230\u53d1\u8d77\u96c6\u7ed3\u6570\u636e:\", asseml)\r\n\r\n        var s = this.setting.find(e=>e.id == this._id(asseml))\r\n          , c = this.config.find(e=>e.id == this._id(asseml))\r\n          , n = this.state.counter && c && this.state.counter[c.name] ? this.state.counter[c.name] : 0;   \/\/\u5df2\u52a0\u5165\u6b21\u6570\r\n        if (c && s) {\r\n            c.active && s.selected && n < s.count && asseml.leaderName.includes(s.leader) && (\r\n                this.deferred.push(asseml.teamId),\r\n                setTimeout(e=>this._onTimeout(e), s.delay*1000, asseml.teamId)\r\n            )\r\n        } \/\/else console.log(asseml);\r\n    },\r\n\r\n    onMyMarchUpdate(e) {\r\n        var o = JSON.parse(e)\r\n        4 == o.marchInfo.state && this._process()\r\n    },\r\n\r\n    _onEvent() {\r\n        __require(\"EventCenter\").EVENT.on(__require(\"EventId\").EventId.AssemblyCreate, this.onAssemblyCreate, this),  \/\/\u76d1\u542c\u521b\u5efa\u96c6\u7ed3\u4e8b\u4ef6\r\n        __require(\"EventCenter\").EVENT.on(__require(\"EventId\").EventId.My_March_Update, this.onMyMarchUpdate, this)   \/\/\u76d1\u542c\u4fee\u6539\u884c\u519b\u4e8b\u4ef6\r\n    },\r\n\r\n    _offEvent() {\r\n        __require(\"EventCenter\").EVENT.off(__require(\"EventId\").EventId.AssemblyCreate, this.onAssemblyCreate, this), \/\/\u76d1\u542c\u521b\u5efa\u96c6\u7ed3\u4e8b\u4ef6\r\n        __require(\"EventCenter\").EVENT.off(__require(\"EventId\").EventId.My_March_Update, this.onMyMarchUpdate, this)  \/\/\u76d1\u542c\u4fee\u6539\u884c\u519b\u4e8b\u4ef6\r\n    },\r\n\r\n    async _start() {\r\n        this._onEvent(), this._process()\r\n    },\r\n\r\n    _stop() {\r\n        this._offEvent()\r\n    },\r\n\r\n    _update() {\r\n        this._save()\r\n        this._render()\r\n    },\r\n\r\n    _save() {\r\n        setItem(\"join-assembly\", JSON.stringify({setting:this.setting, state:this.state}))\r\n    },\r\n\r\n    async _load() {\r\n        var o = await getItem(\"join-assembly\")\r\n        o && (o = JSON.parse(o)) && (this.setting = o.setting, this.state = o.state)\r\n    },\r\n\r\n    _render() {\r\n        var iframe = helper.dialog.iframe;\r\n        if (iframe && iframe.name == \"join-assembly\") {\r\n            var state = iframe.contentWindow.document.getElementById(\"state\")\r\n              , action = iframe.contentWindow.document.getElementById(\"action\");\r\n\r\n            \/\/ \u6e32\u67d3\u72b6\u6001\u542f\u505c\r\n            state.innerText = this.state.running ? \"\u8fd0\u884c\u4e2d\" : \"\u672a\u8fd0\u884c\"\r\n            state.style.backgroundColor = this.state.running ? \"greenyellow\" : \"#aaa\"\r\n            state.style.borderRadius = \"2px\"\r\n            action.innerText = this.state.running ? \"\u505c\u6b62\" : \"\u542f\u52a8\";\r\n    \r\n            \/\/\u6e32\u67d3\u8bbe\u7f6e\u9762\u677f\r\n            for (var s of this.setting) {\r\n                var div = iframe.contentWindow.document.getElementById(s.id.toString());\r\n                if (div) {\r\n                    var c = this.config.find(e=>e.id == s.id)\r\n                      , n = this.state.counter && this.state.counter[c.name]\r\n\r\n                    div.children[\"selected\"].checked = s.selected,\r\n                    div.children[\"selected\"].disabled = !c.active,\r\n                    div.children[\"count\"].children[\"edit\"].value = 99999==s.count ? \"\u65e0\u9650\u6b21\" : s.count+\"\u6b21\",\r\n                    div.children[\"count\"].children[\"edit\"].setAttribute(\"value\", s.count);                    \r\n                    div.children[\"count\"].children[\"edit\"].disabled = !c.active,\r\n                    div.children[\"count\"].children[\"list\"].disabled = !c.active,\r\n                    div.children[\"preset\"].value = s.preset,\r\n                    div.children[\"preset\"].disabled = !c.active,\r\n                    div.children[\"delay\"].value = s.delay,\r\n                    div.children[\"delay\"].disabled = !c.active,\r\n                    div.children[\"limit\"].checked = s.limit,\r\n                    div.children[\"limit\"].disabled = !c.active,\r\n                    div.children[\"leader\"].value = s.leader,\r\n                    div.children[\"leader\"].disabled = !c.active,\r\n                    div.getElementsByTagName(\"p\")[0].children[\"info\"].innerText = n ? \"\u5df2\u53c2\u52a0\" + n + \"\u6b21\" : \"\u3000\",\r\n                    div.getElementsByTagName(\"p\")[0].children[\"info\"].style.color = s.count <= n ? \"green\" : this.state.running && s.selected ? \"purple\" : \"black\";\r\n                }\r\n            }\r\n        }\r\n    },\r\n\r\n    start() {\r\n        !this.state.running && (this.state.running = !0, this._start(), this._update())\r\n    },\r\n\r\n    stop() {\r\n        this.state.running && (this.state.running = !1, this._stop(), this._update())\r\n    },\r\n\r\n    apply(setting) {\r\n        for (var s of setting) {\r\n            var a = this.setting.find((e)=>{ return e.id == s.id})\r\n            a && (\r\n                a.selected = s.selected,\r\n                a.count = s.count,\r\n                a.preset = s.preset,\r\n                a.delay = s.delay,\r\n                a.limit = s.limit,\r\n                a.leader = s.leader\r\n            )\r\n        }\r\n        this._update()\r\n        this._process()\r\n    },\r\n\r\n    dayInit() {\r\n        this.state.counter = {}, this._update()\r\n    },\r\n\r\n    async init() {\r\n        await this._load()\r\n        this.state.running && this._start()\r\n    },\r\n\r\n    free() {\r\n        this._stop()\r\n    },\r\n\r\n    open() {\r\n        helper.dialog.open({name:\"join-assembly\", width:680, height:445, html:this.html})\r\n        this._render()\r\n    }\r\n}\r\n\r\nhelper.pro.joinAssembly.html = String.raw\r\n`<html charset=\"UTF-8\">\r\n<head>\r\n    <style>\r\n        body{line-height:22px; vertical-align:top; font-size:14px; font-family:\"Helvetica\",\"Lucida Console\",\"Microsoft soft\";}\r\n        h3{display:block; margin-top:12px; margin-bottom:8px; text-align:center; width:100%}\r\n        p{display:inline-block; margin:0px; height:22px; width:100%;}\r\n        div{display:inline-block; position:relative; }\r\n        label{margin-right:0px;}\r\n        input{color:#333;border:1px solid #999; border-radius:3px; outline-style:none; margin-right:8px; padding-top:2px; height:20px;}\r\n        input[type=\"checkbox\"]{margin-right:1px; vertical-align:top; margin-top:4px; width:14px; height:14px;}\r\n        select{color:#333; border:1px solid #999; border-radius:4px; outline-style:none; margin-left:0px; margin-right:8px; padding-top:1px; width:50px; height:20px; }\r\n        button{border:1px solid #999; border-radius:3px; outline-style:none; text-align:center; margin-top:0px; width:60px; height:22px;}\r\n        button:hover{background-color:#ccc;} button:focus{background-color:#ccc;} button:active{transform: translateY(1px);}\r\n        input::-webkit-input-placeholder{color: #aaa;}\r\n        #state{margin-left:10px; text-align:center; height:20px}\r\n        #action{margin-left:225px; margin-top:8px; text-align:center; width:80px;}\r\n    \r\n        div.panel{display:block; border:1px solid silver; border-radius:6px; margin:8px; margin-top:4px; margin-bottom:8px; padding-left:8px; padding-top:6px; box-shadow: 3px 3px 6px gray;}\r\n        .input-leader{width:90px; padding-top:0px} .input-preset{width:60px} .input-delay{width:50px}\r\n        .count-list{width:64px}\r\n        .count-edit{position:absolute; padding-top:1px; width:50px; height:18px; left:1px; top:1px; border:0px;}\r\n        .label-text{width:70px; display:inline-block;}\r\n        .label-info{display:inline-block; color:green; margin-left:3px; width:100%;}\r\n    <\/style>        \r\n    <script>\r\n        function editchange(edit) {\r\n            edit.setAttribute(\"value\", Number(edit.value.split(\"\u6b21\")[0])); \r\n            apply();   \r\n        }\r\n\r\n        function listchange(list) {\r\n            var edit = list.parentNode.children[\"edit\"];\r\n            var i = list.selectedIndex;\r\n            edit.value = list.options[i].innerText;\r\n            edit.setAttribute(\"value\", list.options[i].value);\r\n            list.selectedIndex = 0;\r\n            apply();\r\n        }\r\n\r\n        function apply() {\r\n            var nodes = document.body.getElementsByClassName(\"panel\")\r\n            var setting=[]\r\n            for (var div of nodes) {\r\n                var id = Number(div.id)\r\n                  , selected = div.children[\"selected\"].checked\r\n                  , count = Number(div.children[\"count\"].children[\"edit\"].getAttribute(\"value\"))\r\n                  , preset = Number(div.children[\"preset\"].value)\r\n                  , delay = Number(div.children[\"delay\"].value)\r\n                  , limit = div.children[\"limit\"].checked\r\n                  , leader = div.children[\"leader\"].value\r\n                setting.push({id:id, selected:selected, count:count, preset:preset, delay:delay, limit:limit, leader:leader})\r\n            }\r\n            parent.helper.pro.joinAssembly.apply(setting)\r\n        }\r\n\r\n        function action() {\r\n            var o = parent.helper.pro.joinAssembly\r\n            o.state.running ? o.stop() : o.start()\r\n        }\r\n    <\/script>\r\n<\/head>\r\n<body>\r\n    <h3>\u81ea\u52a8\u52a0\u5165\u96c6\u7ed3<\/h3>\r\n    <div id=\"1\" class=\"panel\">\r\n        <input type=\"checkbox\" name=\"selected\" onclick=\"apply()\"><label class=\"label-text\">\u6218\u9524-4000<\/label>\r\n        <label>\u6b21\u6570:<\/label>\r\n        <div name=\"count\">\r\n            <select name=\"list\" class=\"count-list\" onchange=\"listchange(this)\">\r\n                <option style=\"display:none\"><\/option>\r\n                <option value=\"10\">10\u6b21<\/option>\r\n                <option value=\"50\">50\u6b21<\/option>\r\n                <option value=\"99999\">\u65e0\u9650\u6b21<\/option>\r\n            <\/select>\r\n            <input name=\"edit\" class=\"count-edit\" onchange=\"editchange(this)\">\r\n        <\/div>\r\n        <label>\u7f16\u961f:<\/label>\r\n        <select name=\"preset\" class=\"input-preset\" onchange=\"apply()\">\r\n            <option value=\"0\">\u5355\u5175<\/option>\r\n            <option value=\"1\">\u7f16\u961f1<\/option>\r\n            <option value=\"2\">\u7f16\u961f2<\/option>\r\n            <option value=\"3\">\u7f16\u961f3<\/option>\r\n            <option value=\"4\">\u7f16\u961f4<\/option>\r\n            <option value=\"5\">\u7f16\u961f5<\/option>\r\n            <option value=\"6\">\u7f16\u961f6<\/option>\r\n            <option value=\"7\">\u7f16\u961f7<\/option>\r\n            <option value=\"8\">\u7f16\u961f8<\/option>\r\n            <option value=\"9\">\u81ea\u52a8<\/option>\r\n        <\/select>\r\n        <label>\u5ef6\u8fdf:<\/label>\r\n        <select name=\"delay\" class=\"input-delay\" onchange=\"apply()\">\r\n            <option value=\"0\">0\u79d2<\/option>\r\n            <option value=\"1\">1\u79d2<\/option>\r\n            <option value=\"2\">2\u79d2<\/option>\r\n            <option value=\"3\">3\u79d2<\/option>\r\n            <option value=\"4\">4\u79d2<\/option>\r\n            <option value=\"5\">5\u79d2<\/option>\r\n            <option value=\"6\">6\u79d2<\/option>\r\n            <option value=\"7\">7\u79d2<\/option>\r\n            <option value=\"8\">8\u79d2<\/option>\r\n            <option value=\"9\">9\u79d2<\/option>\r\n        <\/select>\r\n        <input type=\"checkbox\" name=\"limit\" onclick=\"apply()\"><label style=\"margin-right:10px\">\u9650\u5b9a\u8ddd\u79bb<\/label>\r\n        <label>\u6307\u5b9a:<\/label>\r\n        <input type=\"text\" name=\"leader\" class=\"input-leader\" placeholder=\"\u73a9\u5bb6\u540d\u5b57\" onchange=\"apply()\"><br>\r\n        <p><span name=\"info\" class=\"label-info\"><\/span><\/p>\r\n    <\/div>\r\n    <div id=\"2\" class=\"panel\">\r\n        <input type=\"checkbox\" name=\"selected\" onclick=\"apply()\"><label class=\"label-text\">\u96be\u6c11\u8425<\/label>\r\n        <label>\u6b21\u6570:<\/label>\r\n        <div name=\"count\">\r\n            <select name=\"list\" class=\"count-list\" onchange=\"listchange(this)\">\r\n                <option style=\"display:none\"><\/option>\r\n                <option value=\"10\">10\u6b21<\/option>\r\n                <option value=\"50\">50\u6b21<\/option>\r\n                <option value=\"99999\">\u65e0\u9650\u6b21<\/option>\r\n            <\/select>\r\n            <input name=\"edit\" class=\"count-edit\" onchange=\"editchange(this)\">\r\n        <\/div>\r\n        <label>\u7f16\u961f:<\/label>\r\n        <select name=\"preset\" class=\"input-preset\" onchange=\"apply()\">\r\n            <option value=\"0\">\u5355\u5175<\/option>\r\n            <option value=\"1\">\u7f16\u961f1<\/option>\r\n            <option value=\"2\">\u7f16\u961f2<\/option>\r\n            <option value=\"3\">\u7f16\u961f3<\/option>\r\n            <option value=\"4\">\u7f16\u961f4<\/option>\r\n            <option value=\"5\">\u7f16\u961f5<\/option>\r\n            <option value=\"6\">\u7f16\u961f6<\/option>\r\n            <option value=\"7\">\u7f16\u961f7<\/option>\r\n            <option value=\"8\">\u7f16\u961f8<\/option>\r\n            <option value=\"9\">\u81ea\u52a8<\/option>\r\n        <\/select>\r\n        <label>\u5ef6\u8fdf:<\/label>\r\n        <select name=\"delay\" class=\"input-delay\" onchange=\"apply()\">\r\n            <option value=\"0\">0\u79d2<\/option>\r\n            <option value=\"1\">1\u79d2<\/option>\r\n            <option value=\"2\">2\u79d2<\/option>\r\n            <option value=\"3\">3\u79d2<\/option>\r\n            <option value=\"4\">4\u79d2<\/option>\r\n            <option value=\"5\">5\u79d2<\/option>\r\n            <option value=\"6\">6\u79d2<\/option>\r\n            <option value=\"7\">7\u79d2<\/option>\r\n            <option value=\"8\">8\u79d2<\/option>\r\n            <option value=\"9\">9\u79d2<\/option>\r\n        <\/select>\r\n        <input type=\"checkbox\" name=\"limit\" onclick=\"apply()\"><label style=\"margin-right:10px\">\u9650\u5b9a\u8ddd\u79bb<\/label>\r\n        <label>\u6307\u5b9a:<\/label>\r\n        <input type=\"text\" name=\"leader\" class=\"input-leader\" placeholder=\"\u73a9\u5bb6\u540d\u5b57\" onchange=\"apply()\"><br>\r\n        <p><span name=\"info\" class=\"label-info\"><\/span><\/p>\r\n    <\/div>\r\n    <div id=\"3\" class=\"panel\">\r\n        <input type=\"checkbox\" name=\"selected\" onclick=\"apply()\"><label class=\"label-text\">\u519b\u56e2\u636e\u70b9<\/label>\r\n        <label>\u6b21\u6570:<\/label>\r\n        <div name=\"count\">\r\n            <select name=\"list\" class=\"count-list\" onchange=\"listchange(this)\">\r\n                <option style=\"display:none\"><\/option>\r\n                <option value=\"10\">10\u6b21<\/option>\r\n                <option value=\"50\">50\u6b21<\/option>\r\n                <option value=\"99999\">\u65e0\u9650\u6b21<\/option>\r\n            <\/select>\r\n            <input name=\"edit\" class=\"count-edit\" onchange=\"editchange(this)\">\r\n        <\/div>\r\n        <label>\u7f16\u961f:<\/label>\r\n        <select name=\"preset\" class=\"input-preset\" onchange=\"apply()\">\r\n            <option value=\"0\">\u5355\u5175<\/option>\r\n            <option value=\"1\">\u7f16\u961f1<\/option>\r\n            <option value=\"2\">\u7f16\u961f2<\/option>\r\n            <option value=\"3\">\u7f16\u961f3<\/option>\r\n            <option value=\"4\">\u7f16\u961f4<\/option>\r\n            <option value=\"5\">\u7f16\u961f5<\/option>\r\n            <option value=\"6\">\u7f16\u961f6<\/option>\r\n            <option value=\"7\">\u7f16\u961f7<\/option>\r\n            <option value=\"8\">\u7f16\u961f8<\/option>\r\n            <option value=\"9\">\u81ea\u52a8<\/option>\r\n        <\/select>\r\n        <label>\u5ef6\u8fdf:<\/label>\r\n        <select name=\"delay\" class=\"input-delay\" onchange=\"apply()\">\r\n            <option value=\"0\">0\u79d2<\/option>\r\n            <option value=\"1\">1\u79d2<\/option>\r\n            <option value=\"2\">2\u79d2<\/option>\r\n            <option value=\"3\">3\u79d2<\/option>\r\n            <option value=\"4\">4\u79d2<\/option>\r\n            <option value=\"5\">5\u79d2<\/option>\r\n            <option value=\"6\">6\u79d2<\/option>\r\n            <option value=\"7\">7\u79d2<\/option>\r\n            <option value=\"8\">8\u79d2<\/option>\r\n            <option value=\"9\">9\u79d2<\/option>\r\n        <\/select>\r\n        <input type=\"checkbox\" name=\"limit\" onclick=\"apply()\"><label style=\"margin-right:10px\">\u9650\u5b9a\u8ddd\u79bb<\/label>\r\n        <label>\u6307\u5b9a:<\/label>\r\n        <input type=\"text\" name=\"leader\" class=\"input-leader\" placeholder=\"\u73a9\u5bb6\u540d\u5b57\" onchange=\"apply()\"><br>\r\n        <p><span name=\"info\" class=\"label-info\"><\/span><\/p>\r\n    <\/div>\r\n    <div id=\"4\" class=\"panel\">\r\n        <input type=\"checkbox\" name=\"selected\" onclick=\"apply()\"><label class=\"label-text\">\u4ff1\u661f-4000<\/label>\r\n        <label>\u6b21\u6570:<\/label>\r\n        <div name=\"count\">\r\n            <select name=\"list\" class=\"count-list\" onchange=\"listchange(this)\">\r\n                <option style=\"display:none\"><\/option>\r\n                <option value=\"10\">10\u6b21<\/option>\r\n                <option value=\"50\">50\u6b21<\/option>\r\n                <option value=\"99999\">\u65e0\u9650\u6b21<\/option>\r\n            <\/select>\r\n            <input name=\"edit\" class=\"count-edit\" onchange=\"editchange(this)\">\r\n        <\/div>\r\n        <label>\u7f16\u961f:<\/label>\r\n        <select name=\"preset\" class=\"input-preset\" onchange=\"apply()\">\r\n            <option value=\"0\">\u5355\u5175<\/option>\r\n            <option value=\"1\">\u7f16\u961f1<\/option>\r\n            <option value=\"2\">\u7f16\u961f2<\/option>\r\n            <option value=\"3\">\u7f16\u961f3<\/option>\r\n            <option value=\"4\">\u7f16\u961f4<\/option>\r\n            <option value=\"5\">\u7f16\u961f5<\/option>\r\n            <option value=\"6\">\u7f16\u961f6<\/option>\r\n            <option value=\"7\">\u7f16\u961f7<\/option>\r\n            <option value=\"8\">\u7f16\u961f8<\/option>\r\n            <option value=\"9\">\u81ea\u52a8<\/option>\r\n        <\/select>\r\n        <label>\u5ef6\u8fdf:<\/label>\r\n        <select name=\"delay\" class=\"input-delay\" onchange=\"apply()\">\r\n            <option value=\"0\">0\u79d2<\/option>\r\n            <option value=\"1\">1\u79d2<\/option>\r\n            <option value=\"2\">2\u79d2<\/option>\r\n            <option value=\"3\">3\u79d2<\/option>\r\n            <option value=\"4\">4\u79d2<\/option>\r\n            <option value=\"5\">5\u79d2<\/option>\r\n            <option value=\"6\">6\u79d2<\/option>\r\n            <option value=\"7\">7\u79d2<\/option>\r\n            <option value=\"8\">8\u79d2<\/option>\r\n            <option value=\"9\">9\u79d2<\/option>\r\n        <\/select>\r\n        <input type=\"checkbox\" name=\"limit\" onclick=\"apply()\"><label style=\"margin-right:10px\">\u9650\u5b9a\u8ddd\u79bb<\/label>\r\n        <label>\u6307\u5b9a:<\/label>\r\n        <input type=\"text\" name=\"leader\" class=\"input-leader\" placeholder=\"\u73a9\u5bb6\u540d\u5b57\" onchange=\"apply()\"><br>\r\n        <p><span name=\"info\" class=\"label-info\"><\/span><\/p>\r\n    <\/div>\r\n    <div id=\"5\" class=\"panel\">\r\n        <input type=\"checkbox\" name=\"selected\" onclick=\"apply()\"><label class=\"label-text\">\u7231\u5fc3\u7830\u7830<\/label>\r\n        <label>\u6b21\u6570:<\/label>\r\n        <div name=\"count\">\r\n            <select name=\"list\" class=\"count-list\" onchange=\"listchange(this)\">\r\n                <option style=\"display:none\"><\/option>\r\n                <option value=\"10\">10\u6b21<\/option>\r\n                <option value=\"50\">50\u6b21<\/option>\r\n                <option value=\"99999\">\u65e0\u9650\u6b21<\/option>\r\n            <\/select>\r\n            <input name=\"edit\" class=\"count-edit\" onchange=\"editchange(this)\">\r\n        <\/div>\r\n        <label>\u7f16\u961f:<\/label>\r\n        <select name=\"preset\" class=\"input-preset\" onchange=\"apply()\">\r\n            <option value=\"0\">\u5355\u5175<\/option>\r\n            <option value=\"1\">\u7f16\u961f1<\/option>\r\n            <option value=\"2\">\u7f16\u961f2<\/option>\r\n            <option value=\"3\">\u7f16\u961f3<\/option>\r\n            <option value=\"4\">\u7f16\u961f4<\/option>\r\n            <option value=\"5\">\u7f16\u961f5<\/option>\r\n            <option value=\"6\">\u7f16\u961f6<\/option>\r\n            <option value=\"7\">\u7f16\u961f7<\/option>\r\n            <option value=\"8\">\u7f16\u961f8<\/option>\r\n            <option value=\"9\">\u81ea\u52a8<\/option>\r\n        <\/select>\r\n        <label>\u5ef6\u8fdf:<\/label>\r\n        <select name=\"delay\" class=\"input-delay\" onchange=\"apply()\">\r\n            <option value=\"0\">0\u79d2<\/option>\r\n            <option value=\"1\">1\u79d2<\/option>\r\n            <option value=\"2\">2\u79d2<\/option>\r\n            <option value=\"3\">3\u79d2<\/option>\r\n            <option value=\"4\">4\u79d2<\/option>\r\n            <option value=\"5\">5\u79d2<\/option>\r\n            <option value=\"6\">6\u79d2<\/option>\r\n            <option value=\"7\">7\u79d2<\/option>\r\n            <option value=\"8\">8\u79d2<\/option>\r\n            <option value=\"9\">9\u79d2<\/option>\r\n        <\/select>\r\n        <input type=\"checkbox\" name=\"limit\" onclick=\"apply()\"><label style=\"margin-right:10px\">\u9650\u5b9a\u8ddd\u79bb<\/label>\r\n        <label>\u6307\u5b9a:<\/label>\r\n        <input type=\"text\" name=\"leader\" class=\"input-leader\" placeholder=\"\u73a9\u5bb6\u540d\u5b57\" onchange=\"apply()\"><br>\r\n        <p><span name=\"info\" class=\"span-info\"><\/span><\/p>\r\n    <\/div>\r\n    <div id=\"6\" class=\"panel\">\r\n        <input type=\"checkbox\" name=\"selected\" onclick=\"apply()\"><label class=\"label-text\">\u9ed1\u6697\u7cbe\u536b<\/label>\r\n        <label>\u6b21\u6570:<\/label>\r\n        <div name=\"count\">\r\n            <select name=\"list\" class=\"count-list\" onchange=\"listchange(this)\">\r\n                <option style=\"display:none\"><\/option>\r\n                <option value=\"10\">10\u6b21<\/option>\r\n                <option value=\"50\">50\u6b21<\/option>\r\n                <option value=\"99999\">\u65e0\u9650\u6b21<\/option>\r\n            <\/select>\r\n            <input name=\"edit\" class=\"count-edit\" onchange=\"editchange(this)\">\r\n        <\/div>\r\n        <label>\u7f16\u961f:<\/label>\r\n        <select name=\"preset\" class=\"input-preset\" onchange=\"apply()\">\r\n            <option value=\"0\">\u5355\u5175<\/option>\r\n            <option value=\"1\">\u7f16\u961f1<\/option>\r\n            <option value=\"2\">\u7f16\u961f2<\/option>\r\n            <option value=\"3\">\u7f16\u961f3<\/option>\r\n            <option value=\"4\">\u7f16\u961f4<\/option>\r\n            <option value=\"5\">\u7f16\u961f5<\/option>\r\n            <option value=\"6\">\u7f16\u961f6<\/option>\r\n            <option value=\"7\">\u7f16\u961f7<\/option>\r\n            <option value=\"8\">\u7f16\u961f8<\/option>\r\n            <option value=\"9\">\u81ea\u52a8<\/option>\r\n        <\/select>\r\n        <label>\u5ef6\u8fdf:<\/label>\r\n        <select name=\"delay\" class=\"input-delay\" onchange=\"apply()\">\r\n            <option value=\"0\">0\u79d2<\/option>\r\n            <option value=\"1\">1\u79d2<\/option>\r\n            <option value=\"2\">2\u79d2<\/option>\r\n            <option value=\"3\">3\u79d2<\/option>\r\n            <option value=\"4\">4\u79d2<\/option>\r\n            <option value=\"5\">5\u79d2<\/option>\r\n            <option value=\"6\">6\u79d2<\/option>\r\n            <option value=\"7\">7\u79d2<\/option>\r\n            <option value=\"8\">8\u79d2<\/option>\r\n            <option value=\"9\">9\u79d2<\/option>\r\n        <\/select>\r\n        <input type=\"checkbox\" name=\"limit\" onclick=\"apply()\"><label style=\"margin-right:10px\">\u9650\u5b9a\u8ddd\u79bb<\/label>\r\n        <label>\u6307\u5b9a:<\/label>\r\n        <input type=\"text\" name=\"leader\" class=\"input-leader\" placeholder=\"\u73a9\u5bb6\u540d\u5b57\" onchange=\"apply()\">\r\n        <p><span name=\"info\" class=\"label-info\"><\/span><\/p>\r\n    <\/div>\r\n    <span id=\"state\">\u672a\u8fd0\u884c<\/span>\r\n    <button id=\"action\" onclick=\"action()\">\u542f\u52a8<\/button>\r\n<\/body>\r\n<\/html>`\r\n\r\n\r\n\/\/-------------------------------------------------------------------------------------------------\r\n\/\/\u81ea\u52a8\u91c7\u96c6\u8d44\u6e90\r\nhelper.pro.gatherResource && helper.pro.gatherResource.free()\r\nhelper.pro.gatherResource = {\r\n    setting: [\r\n        {selected: !1, type: 0, option: 0},\r\n        {selected: !1, type: 0, option: 0},\r\n        {selected: !1, type: 0, option: 0},\r\n        {selected: !1, type: 0, option: 0},\r\n        {selected: !0, type: 1, option: 3},\r\n        {selected: !0, type: 2, option: 3},\r\n        {selected: !0, type: 1, option: 3},\r\n        {selected: !0, type: 2, option: 3}\r\n    ],\r\n    state: {\r\n        running: !1\r\n    },\r\n\r\n    _records(type) {\r\n        var a = ['\u8c37\u4ed3', '\u70bc\u6cb9', '\u91c7\u91d1'],  o = []\r\n        __require(\"AllianceRecordController\").default.instance.getDataByType(4).forEach(e=>ServerTime-e.tampTime < 14400 && e.msg.includes(a[type-1]) && o.push(e))\r\n        o.sort((d,e)=>{\r\n            var l1 = d.msg[d.msg.lastIndexOf(\"\u7ea7\")-1]\r\n            var l2 = e.msg[e.msg.lastIndexOf(\"\u7ea7\")-1]\r\n            return l1 != l2 && l2 - l1 || e.tampTime - e.tampTime\r\n        }) \r\n        return o    \r\n    },\r\n\r\n    \/\/\u7f16\u961f\u68c0\u67e5\r\n    _precheck(preset) {\r\n        \/\/\u5355\u5175\u68c0\u67e5(\u542b\u673a\u7532)\r\n        if (0 == preset || 9 == preset) {\r\n            var one = __require(\"GameTools\").default.getAttackerMyArmys().sort((t, e)=>{return t.ArmyData.power - e.ArmyData.power})[0]\r\n            if (!one || (one.battleMechaData && !helper.battle.mechaOk(one.battleMechaData.mechaId)))\r\n                return 0\r\n        }\r\n        \/\/\u9884\u8bbe\u7f16\u961f\r\n        if (0 < preset && preset < 9) { \r\n            var march = UserData.PresetMarchData.getPreMarchByIndex(preset-1)\r\n            if (!march) return 0  \r\n    \r\n            \/\/\u68c0\u67e5\u82f1\u96c4\r\n            var heros = __require(\"HeroController\").HeroController.getInstance().getHaveHeroCanMarchList()\r\n            for (var i = 0; i < march.HeroIds.length; ++i) if (!heros.find((e)=>{return e._id == march.HeroIds[i]})) return 0\r\n \r\n            \/\/\u68c0\u67e5\u58eb\u5175\r\n            var armys = __require(\"GameTools\").default.getAttackerMyArmys()\r\n            for (var group = {}, i = 0; i < armys.length; ++i) {var n=armys[i].ArmyData.id; group[n] = (group[n] ? group[n] : 0) + 1}\r\n            for (var e of march.Armys) {\r\n                if (e && e.ArmyId && e.isMecha && !helper.battle.mechaOk(e.mechaId)) return 0\r\n                if (e && e.ArmyId && !e.isMecha && (!group[e.ArmyId] || (group[e.ArmyId] -= e.Num)<0)) return 0\r\n            }\r\n        }\r\n        return 1\r\n    },\r\n\r\n    async _equipHeroSkills(heroId, type) {\r\n        var a = [[25235,25234,25035,25034], [25235,25233,25035,25033], [25235,25232,25035,25032], [25235,25236,25035,25036]][type-1]        \r\n        for(var i = 0; i < 4; i++) {\r\n            var hero = UserData.Heros[heroId], item = null, n = -1\r\n            UserData._items.forEach(e=>parseInt(e.ItemId\/100) == a[i] && e.Amount>0 && (!item || item.ItemId < e.ItemId) && (item = e))\r\n            if (hero && item) {\r\n                if (hero.SecondSkillList.find(e=>e.skillId == item.Data.para1)) continue    \/\/\u5df2\u5b89\u88c5\r\n                if ((n = hero.SecondSkillList.findIndex(e=>e.skillId == 0)) < 0) break      \/\/\u67e5\u627e\u7a7a\u69fd\r\n                await send(RequestId.STUDY_HERO_SKILL, {heroId:heroId, index:n, itemId:item.ItemId, isBuffSlot:!1, skillsIndex:2})\r\n            }\r\n        }\r\n        UserData.Heros[heroId].SkillsIndex == 2 || await send(RequestId.ChangeHeroSkillsIndex, {heroId:heroId, skillsIndex:2})    \/\/\u5207\u5230\u6280\u80fd\u7ec42       \r\n    },\r\n\r\n    async _removeHeroSkills(heroId) {\r\n        var n = -1\r\n        while ((n = UserData.Heros[heroId].SecondSkillList.findIndex(e=>[21205,21206,21204,21203,21202,20205,20206,20204,20203,20202].includes(e.skillId))) >= 0) {\r\n            await send(RequestId.FORGET_HERO_SKILL, {heroId:heroId, index:n, isBuffSlot:!1, skillsIndex:2})\r\n        }\r\n        UserData.Heros[heroId].SkillsIndex == 1 || await send(RequestId.ChangeHeroSkillsIndex, {heroId:heroId, skillsIndex:1})    \/\/\u5207\u56de\u6280\u80fd\u7ec41      \r\n    },\r\n\r\n    async _equipSkills(preset, type) {\r\n        var march = UserData.PresetMarchData.getPreMarchByIndex(preset-1)\r\n        if (march && type) {\r\n            for (var i = 0; i < march.HeroIds.length; i++) await this._equipHeroSkills(march.HeroIds[i], type)\r\n        }\r\n    },\r\n\r\n    async _removeSkills(preset) {\r\n        var march = UserData.PresetMarchData.getPreMarchByIndex(preset-1)\r\n        if (march) {\r\n            for (var i = 0; i < march.HeroIds.length; i++) await this._removeHeroSkills(march.HeroIds[i])\r\n        }\r\n    },\r\n\r\n    async _getTileInfo(p) {\r\n        var c = __require(\"NWorldMapController\").default.instance\r\n        var o = p && await send(RequestId.GET_WORLD_INFO, {x: p.x, y: p.y, k: UserData.ServerId, marchInfo: !1, viewLevel: 0})\r\n        p = o && o.pointList && o.pointList.find(e=>e.x == p.x && e.y == p.y)\r\n        return p && (c.updateTileInfo(p, 0), c.getTileInfoByCoord(p.x, p.y, p.k, 0))\r\n    },\r\n\r\n    async _getTowerInfo(ti) {\r\n        return await send(RequestId.GET_TOWERINFO, {id: ti.extData.id})\r\n    },\r\n\r\n    async _marchTower(preset) {\r\n        var context = helper.battle.backup()\r\n        try {\r\n            var c = __require(\"TableManager\").TABLE.getTableDataById(__require(\"TableName\").TableName.MAP_BUILDING, this.tileInfo.extData.bid + \"\") \r\n            var o = Object.assign(new(__require(\"NWorldTowerPopup\").default), {_tileInfo: this.tileInfo, _towerInfo: this.towerInfo, _cfg: c})\r\n            o.AttackTowerinfo(__require(\"BattleData\").BattleType.TOWER_COLLECT)  \/\/\u91c7\u96c6\u673a\u68b0\u7530\r\n            return helper.battle.setup(preset, c.force_capacity - this.towerInfo.army_size) && helper.battle.march()    \/\/\u8bbe\u7f6e\u82f1\u96c4\u548c\u58eb\u5175\u5e76\u51fa\u5f81\r\n        }\r\n        finally {\r\n            helper.battle.restore(context)\r\n        }\r\n    },\r\n\r\n    async _gatherTower(preset) {\r\n        if (await helper.battle.mutex.acquire(2000)) {\r\n            try {\r\n                return await this._marchTower(preset)        \/\/\u51fa\u5f81\r\n            }\r\n            finally {\r\n                helper.battle.mutex.release()\r\n            }\r\n        }\r\n    },\r\n\r\n    \/\/\u662f\u5426\u5b58\u5728\u81ea\u5df1\u884c\u519b\r\n    _existMyMarch(point) {\r\n        for (var r in __require(\"NWorldMapMarchModel\").default.instance.myMarch) {\r\n            var o = __require(\"NWorldMapData\").default.instance.marches[r];\r\n            if (o && o.target_tx == point.x && o.target_ty == point.y) return !0\r\n        }\r\n        return !1\r\n    },\r\n\r\n    \/\/\u673a\u68b0\u7530\u7a7a\u95f4\r\n    _towerCapacity(ti) {\r\n        var o = __require(\"TableManager\").TABLE.getTableDataById(__require(\"TableName\").TableName.MAP_BUILDING, ti.extData.bid + \"\")\r\n        return o && o.force_capacity \r\n    },\r\n\r\n    async _marchField(preset) {\r\n        var context = helper.battle.backup()\r\n        try {\r\n            var o = Object.assign(new(__require(\"NWorldResourcePopup\").default), {_tileInfo: this.tileInfo, _resInfo: this.resInfo})\r\n            o.Attack()  \/\/ \u666e\u901a\u91c7\u96c6\r\n            return helper.battle.setup(preset, 9999) && helper.battle.march()  \/\/\u8bbe\u7f6e\u82f1\u96c4\u548c\u58eb\u5175\u5e76\u51fa\u5f81\r\n        }\r\n        finally {\r\n            helper.battle.restore(context)\r\n        }\r\n    },\r\n\r\n    async _gatherField(preset) {\r\n        if (await helper.battle.mutex.acquire(2000)) {\r\n            try {\r\n                return await this._marchField(preset)        \/\/\u51fa\u5f81\r\n            }\r\n            finally {\r\n                helper.battle.mutex.release()\r\n            }\r\n        }\r\n    },\r\n\r\n    async _searchField(type) {\r\n        for(var i = type == 4 ? 3: 5; i >= 1; i--) {\r\n            var t  = [701, 501, 101, 1600][type-1]\r\n            var o = await send(RequestId.WORLD_SEARCH_MONSTER, {groupType:t+i, maxLevel:i, minLevel:i, pointType:2})\r\n            if (o && o.point && o.point.r) return o.point\r\n        }\r\n    },\r\n\r\n    async _gatherWithSkills(preset, type, kind) {\r\n        \/\/\u5207\u6362\u8d85\u7ea7\u77ff\u5de5\r\n        if (UserData.UsingCastleFace != 1710700 && UserData.MyCastleFace[1710700]) {\r\n            await send(RequestId.USE_CASTLE_FACE, {skinId:1710700, special:0})\r\n        } \r\n        \r\n        \/\/\u5b89\u88c5\u91c7\u96c6\u6280\u80fd\r\n        await this._equipSkills(preset, type)\r\n        \r\n        \/\/\u91c7\u96c6\u884c\u519b\u51fa\u5f81\r\n        switch (kind) {\r\n            case 1: var o = await this._gatherTower(preset); break\r\n            case 2: var o = await this._gatherField(preset); break\r\n        }\r\n\r\n        \/\/\u6062\u590d\u82f1\u96c4\u6280\u80fd\r\n        await this._removeSkills(preset)\r\n        return o\r\n    },\r\n\r\n    async _gather(preset, type, option) {\r\n        \/\/\u673a\u68b0\u91c7\u96c6\r\n        if (option == 1 || option == 3) {\r\n            for(var e of this._records(type)) {\r\n                var p = e.targetPosArr[0]\r\n                if (!this._existMyMarch(p)) {\r\n                    this.tileInfo = await this._getTileInfo(p)                \/\/\u65b9\u683c\u4fe1\u606f\r\n                    this.towerInfo = await this._getTowerInfo(this.tileInfo)  \/\/\u5854\u4fe1\u606f\r\n                    var o = this._towerCapacity(this.tileInfo) - this.towerInfo.army_size >= 10 && await this._gatherWithSkills(preset, type, 1)\r\n                    if (o) return o\r\n                }\r\n            }  \r\n        }\r\n        \/\/\u666e\u901a\u91c7\u96c6\r\n        if (option == 2 || option == 3) {\r\n            var p = await this._searchField(type)\r\n            if(p) {\r\n                this.tileInfo = await this._getTileInfo(p)\r\n                this.resInfo = __require(\"NWorldMapModel\").default.instance.getResourceInfoByTileId(this.tileInfo.id)\r\n                var o = await this._gatherWithSkills(preset, type, 2)\r\n                return o\r\n            }\r\n        }\r\n    },\r\n\r\n    async _execute() {\r\n        \/\/var cur_skin = UserData.UsingCastleFace\r\n        for(var i = 0; i < this.setting.length; i++) {\r\n            var s = this.setting[i]\r\n            if (s.selected && s.type && s.option && (UserData.myMarchNum < UserData.myMarchNumMAX) && this._precheck(i+1)) {           \r\n                var o = await this._gather(i+1, s.type, s.option)\r\n                o && o.marchInfo || sleep(5000)\r\n            }\r\n        }\r\n        \/\/\u6062\u590d\u5f53\u524d\u76ae\u80a4  -- \u4e0d\u80fd\u7acb\u5373\u6062\u590d\u5f53\u524d\u76ae\u80a4\uff0c\u56e0\u4e3a\u77ff\u5de5\u589e\u76ca\u5728\u4e0b\u7530\u65f6\u70b9\u751f\u6548\uff08\u4e0d\u662f\u5728\u51fa\u5f81\u65f6\u70b9\uff09\r\n        \/\/(UserData.UsingCastleFace != cur_skin) && await send(RequestId.USE_CASTLE_FACE, {skinId:cur_skin, special:0})\r\n    },\r\n\r\n    async _onTimer() {\r\n        if (!this.busy) {\r\n            try {this.busy = 1, await this._execute()} finally{this.busy = 0}\r\n        }\r\n    },\r\n\r\n    _start() {\r\n        this.timer || (this.timer = setInterval(this._onTimer.bind(this), 1000))\r\n    },\r\n\r\n    _stop() {\r\n        this.timer && (clearInterval(this.timer), this.timer = 0)\r\n    },\r\n\r\n    _update() {\r\n        this._save()\r\n        this._render()\r\n    },\r\n\r\n    _save() {\r\n        setItem(\"gather-resource\", JSON.stringify({setting:this.setting, state:this.state}))\r\n    },\r\n\r\n    async _load() {\r\n        var o = await getItem(\"gather-resource\")\r\n        o && (o = JSON.parse(o)) && (this.setting = o.setting, this.state.running = o.state.running)\r\n    },\r\n\r\n    _render() {\r\n        var iframe = helper.dialog.iframe\r\n        iframe && iframe.contentWindow.render(this.setting, this.state)        \r\n    },\r\n\r\n    start() {\r\n        !this.state.running && (this.state.running = !0, this._start(), this._update())\r\n    },\r\n\r\n    stop() {\r\n        this.state.running && (this.state.running = !1, this._stop(), this._update())\r\n    },\r\n\r\n    apply(setting) {\r\n        for (var i=0; i<8; ++i) {    \r\n            this.setting[i].selected = setting[i].selected\r\n            this.setting[i].type = setting[i].type\r\n            this.setting[i].option = setting[i].option\r\n        }\r\n        this._update()\r\n    },\r\n\r\n    async init() {\r\n        await this._load()\r\n        this.state.running && this._start()\r\n    },\r\n\r\n    free() {\r\n        this._stop()\r\n    },\r\n\r\n    open() {\r\n        helper.dialog.open({name:\"gather-resource\", width:535, height:315, html:this.html})\r\n        this._render()\r\n    }\r\n}\r\n\r\nhelper.pro.gatherResource.html = String.raw\r\n`<html charset=\"UTF-8\">\r\n<head>\r\n<style>\r\n    body{line-height:26px; vertical-align:top; font-size:14px; font-family:\"Helvetica\",\"Lucida Console\",\"Microsoft soft\";}\r\n    h3{display:block; margin-top:12px; margin-bottom:8px; text-align:center; width:100%}\r\n    label{margin-left:2px; margin-right:2px;}\r\n    label.caption{display:inline-block; width:80px;}\r\n    span{margin-left:20px; margin-right:0px;}\r\n    input{color:#333;border:1px solid #999; border-radius:3px; outline-style:none; margin-right:12px; padding-top:2px; height:20px;}\r\n    input[type=\"checkbox\"]{margin-right:1px; vertical-align:top; margin-top:6px; width:14px; height:14px;}\r\n    input[type=\"radio\"]{margin-right:1px; vertical-align:top; margin-top:6px; margin-left:12px; width:14px; height:14px;}\r\n    select{color:#333; border:1px solid #999; border-radius:4px; outline-style:none; margin-left:0px; padding-top:1px; height:20px; }\r\n    button{border:1px solid #999; border-radius:3px; outline-style:none; text-align:center; margin-top:0px; width:60px; height:22px;}\r\n    button:hover{background-color:#ccc;} button:focus{background-color:#ccc;} button:active{transform: translateY(1px);}\r\n    input::-webkit-input-placeholder{color: #aaa;} div span{margin-left:12px;}\r\n    div.panel{border:1px solid silver; border-radius:6px; margin:8px; padding:4px; padding-left:8px; padding-right:0px; box-shadow: 3px 3px 6px gray;}\r\n    #state{margin-left:10px; margin-top:8px; text-align:center; height:20px}\r\n    #action{margin-left:160px; margin-top:8px; text-align:center; width:80px;}\r\n<\/style>\r\n<\/script>      \r\n<script>\r\n    function $(a) {\r\n        return a && '#'==a[0] && document.getElementById(a.substring(1))\r\n    }\r\n\r\n    function apply() {\r\n        var setting = []\r\n        for (var i=0; i<8; ++i) {\r\n            var selected = !1, type = 0, option = 0\r\n            selected = $(\"#team-\"+(i+1)).children[0].checked\r\n            type = selected && Number($(\"#team-\"+(i+1)).children[2].children[1].value)\r\n            option = selected && (\r\n                $(\"#team-\"+(i+1)).children[2].children[2].checked && 1 ||\r\n                $(\"#team-\"+(i+1)).children[2].children[3].checked && 2 ||\r\n                $(\"#team-\"+(i+1)).children[2].children[4].checked && 3\r\n            )\r\n            setting.push({selected: selected, type: type, option: option})\r\n        }\r\n        parent.helper.pro.gatherResource.apply(setting);\r\n    }\r\n\r\n    function render(setting, state) {\r\n        var html=\"\"\r\n        for(var i=0; i<8; ++i) {\r\n            $(\"#team-\"+(i+1)).children[0].checked = setting[i].selected\r\n            $(\"#team-\"+(i+1)).children[2].style.display = setting[i].selected? \"inline-block\" : \"none\"\r\n            $(\"#team-\"+(i+1)).children[2].children[1].value = setting[i].type\r\n            $(\"#team-\"+(i+1)).children[2].children[2].checked = setting[i].option==1\r\n            $(\"#team-\"+(i+1)).children[2].children[3].checked = setting[i].option==2\r\n            $(\"#team-\"+(i+1)).children[2].children[4].checked = setting[i].option==3\r\n        }\r\n\r\n        $(\"#state\").innerText = state.running ? \"\u8fd0\u884c\u4e2d\" : \"\u672a\u8fd0\u884c\"\r\n        $(\"#state\").style.backgroundColor = state.running ? \"greenyellow\" : \"#aaa\"\r\n        $(\"#state\").style.borderRadius = \"2px\"\r\n\r\n        $(\"#action\").innerText = state.running ? \"\u505c\u6b62\" : \"\u542f\u52a8\";\r\n    }\r\n\r\n    function action() {\r\n        var o = parent.helper.pro.gatherResource\r\n        o.state.running ? o.stop() : o.start()\r\n    }\r\n<\/script>\r\n<\/head>\r\n<body>\r\n    <h3>\u81ea\u52a8\u91c7\u96c6\u8d44\u6e90<\/h3>\r\n    <div class=\"panel\">\r\n        <div id=\"team-1\">\r\n            <input type=\"checkbox\" onclick=\"apply()\"><label>\u7f16\u961f1<\/label>\r\n            <div style=\"display:inline-block\">\r\n                <span>\u8d44\u6e90\u7c7b\u578b:<\/span>\r\n                <select value=\"1\" onchange=\"apply()\">\r\n                    <option value=\"1\">\u519c\u7530<\/option>\r\n                    <option value=\"2\">\u6cb9\u7530<\/option>\r\n                    <option value=\"3\">\u91d1\u77ff<\/option>\r\n                    <option value=\"4\">\u96f7\u795e\u77ff<\/option>\r\n                <\/select>\r\n                <input type=\"radio\" name=\"option-1\" onclick=\"apply()\">\u4ec5\u673a\u68b0\u7530<\/input>\r\n                <input type=\"radio\" name=\"option-1\" onclick=\"apply()\">\u4ec5\u666e\u901a\u7530<\/input>\r\n                <input type=\"radio\" name=\"option-1\" onclick=\"apply()\">\u4f18\u5148\u673a\u68b0\u7530<\/input>\r\n            <\/div>\r\n        <\/div>\r\n        <div id=\"team-2\">\r\n            <input type=\"checkbox\" onclick=\"apply()\"><label>\u7f16\u961f2<\/label>\r\n            <div style=\"display:inline-block\">\r\n                <span>\u8d44\u6e90\u7c7b\u578b:<\/span>\r\n                <select value=\"1\" onchange=\"apply()\">\r\n                    <option value=\"1\">\u519c\u7530<\/option>\r\n                    <option value=\"2\">\u6cb9\u7530<\/option>\r\n                    <option value=\"3\">\u91d1\u77ff<\/option>\r\n                    <option value=\"4\">\u96f7\u795e\u77ff<\/option>\r\n                <\/select>\r\n                <input type=\"radio\" name=\"option-2\" onclick=\"apply()\">\u4ec5\u673a\u68b0\u7530<\/input>\r\n                <input type=\"radio\" name=\"option-2\" onclick=\"apply()\">\u4ec5\u666e\u901a\u7530<\/input>\r\n                <input type=\"radio\" name=\"option-2\" onclick=\"apply()\">\u4f18\u5148\u673a\u68b0\u7530<\/input>\r\n            <\/div>\r\n        <\/div>\r\n        <div id=\"team-3\">\r\n            <input type=\"checkbox\" onclick=\"apply()\"><label>\u7f16\u961f3<\/label>\r\n            <div style=\"display:inline-block\">\r\n                <span>\u8d44\u6e90\u7c7b\u578b:<\/span>\r\n                <select value=\"1\" onchange=\"apply()\">\r\n                    <option value=\"1\">\u519c\u7530<\/option>\r\n                    <option value=\"2\">\u6cb9\u7530<\/option>\r\n                    <option value=\"3\">\u91d1\u77ff<\/option>\r\n                    <option value=\"4\">\u96f7\u795e\u77ff<\/option>\r\n                <\/select>\r\n                <input type=\"radio\" name=\"option-3\" onclick=\"apply()\">\u4ec5\u673a\u68b0\u7530<\/input>\r\n                <input type=\"radio\" name=\"option-3\" onclick=\"apply()\">\u4ec5\u666e\u901a\u7530<\/input>\r\n                <input type=\"radio\" name=\"option-3\" onclick=\"apply()\">\u4f18\u5148\u673a\u68b0\u7530<\/input>\r\n            <\/div>\r\n        <\/div>\r\n        <div id=\"team-4\">\r\n            <input type=\"checkbox\" onclick=\"apply()\"><label>\u7f16\u961f4<\/label>\r\n            <div style=\"display:inline-block\">\r\n                <span>\u8d44\u6e90\u7c7b\u578b:<\/span>\r\n                <select value=\"1\" onchange=\"apply()\">\r\n                    <option value=\"1\">\u519c\u7530<\/option>\r\n                    <option value=\"2\">\u6cb9\u7530<\/option>\r\n                    <option value=\"3\">\u91d1\u77ff<\/option>\r\n                    <option value=\"4\">\u96f7\u795e\u77ff<\/option>\r\n                <\/select>\r\n                <input type=\"radio\" name=\"option-4\" onclick=\"apply()\">\u4ec5\u673a\u68b0\u7530<\/input>\r\n                <input type=\"radio\" name=\"option-4\" onclick=\"apply()\">\u4ec5\u666e\u901a\u7530<\/input>\r\n                <input type=\"radio\" name=\"option-4\" onclick=\"apply()\">\u4f18\u5148\u673a\u68b0\u7530<\/input>\r\n            <\/div>\r\n        <\/div>\r\n        <div id=\"team-5\">\r\n            <input type=\"checkbox\" onclick=\"apply()\"><label>\u7f16\u961f5<\/label>\r\n            <div style=\"display:inline-block\">\r\n                <span>\u8d44\u6e90\u7c7b\u578b:<\/span>\r\n                <select value=\"1\" onchange=\"apply()\">\r\n                    <option value=\"1\">\u519c\u7530<\/option>\r\n                    <option value=\"2\">\u6cb9\u7530<\/option>\r\n                    <option value=\"3\">\u91d1\u77ff<\/option>\r\n                    <option value=\"4\">\u96f7\u795e\u77ff<\/option>\r\n                <\/select>\r\n                <input type=\"radio\" name=\"option-5\" onclick=\"apply()\">\u4ec5\u673a\u68b0\u7530<\/input>\r\n                <input type=\"radio\" name=\"option-5\" onclick=\"apply()\">\u4ec5\u666e\u901a\u7530<\/input>\r\n                <input type=\"radio\" name=\"option-5\" onclick=\"apply()\">\u4f18\u5148\u673a\u68b0\u7530<\/input>\r\n            <\/div>\r\n        <\/div>\r\n        <div id=\"team-6\">\r\n            <input type=\"checkbox\" onclick=\"apply()\"><label>\u7f16\u961f6<\/label>\r\n            <div style=\"display:inline-block\">\r\n                <span>\u8d44\u6e90\u7c7b\u578b:<\/span>\r\n                <select value=\"1\" onchange=\"apply()\">\r\n                    <option value=\"1\">\u519c\u7530<\/option>\r\n                    <option value=\"2\">\u6cb9\u7530<\/option>\r\n                    <option value=\"3\">\u91d1\u77ff<\/option>\r\n                    <option value=\"4\">\u96f7\u795e\u77ff<\/option>\r\n                <\/select>\r\n                <input type=\"radio\" name=\"option-6\" onclick=\"apply()\">\u4ec5\u673a\u68b0\u7530<\/input>\r\n                <input type=\"radio\" name=\"option-6\" onclick=\"apply()\">\u4ec5\u666e\u901a\u7530<\/input>\r\n                <input type=\"radio\" name=\"option-6\" onclick=\"apply()\">\u4f18\u5148\u673a\u68b0\u7530<\/input>\r\n            <\/div>\r\n        <\/div>\r\n        <div id=\"team-7\">\r\n            <input type=\"checkbox\" onclick=\"apply()\"><label>\u7f16\u961f7<\/label>\r\n            <div style=\"display:inline-block\">\r\n                <span>\u8d44\u6e90\u7c7b\u578b:<\/span>\r\n                <select value=\"1\" onchange=\"apply()\">\r\n                    <option value=\"1\">\u519c\u7530<\/option>\r\n                    <option value=\"2\">\u6cb9\u7530<\/option>\r\n                    <option value=\"3\">\u91d1\u77ff<\/option>\r\n                    <option value=\"4\">\u96f7\u795e\u77ff<\/option>\r\n                <\/select>\r\n                <input type=\"radio\" name=\"option-7\" onclick=\"apply()\">\u4ec5\u673a\u68b0\u7530<\/input>\r\n                <input type=\"radio\" name=\"option-7\" onclick=\"apply()\">\u4ec5\u666e\u901a\u7530<\/input>\r\n                <input type=\"radio\" name=\"option-7\" onclick=\"apply()\">\u4f18\u5148\u673a\u68b0\u7530<\/input>\r\n            <\/div>\r\n        <\/div>\r\n        <div id=\"team-8\">\r\n            <input type=\"checkbox\" onclick=\"apply()\"><label>\u7f16\u961f8<\/label>\r\n            <div style=\"display:inline-block\">\r\n                <span>\u8d44\u6e90\u7c7b\u578b:<\/span>\r\n                <select value=\"1\" onchange=\"apply()\">\r\n                    <option value=\"1\">\u519c\u7530<\/option>\r\n                    <option value=\"2\">\u6cb9\u7530<\/option>\r\n                    <option value=\"3\">\u91d1\u77ff<\/option>\r\n                    <option value=\"4\">\u96f7\u795e\u77ff<\/option>\r\n                <\/select>\r\n                <input type=\"radio\" name=\"option-8\" onclick=\"apply()\">\u4ec5\u673a\u68b0\u7530<\/input>\r\n                <input type=\"radio\" name=\"option-8\" onclick=\"apply()\">\u4ec5\u666e\u901a\u7530<\/input>\r\n                <input type=\"radio\" name=\"option-8\" onclick=\"apply()\">\u4f18\u5148\u673a\u68b0\u7530<\/input>\r\n            <\/div>\r\n        <\/div>\r\n    <\/div>\r\n    <span id=\"state\">\u672a\u8fd0\u884c<\/span>\r\n    <button id=\"action\" onclick=\"action()\">\u542f\u52a8<\/button>\r\n<\/body>\r\n<\/html>`\r\n\r\n\r\n\/\/-------------------------------------------------------------------------------------------------\r\n\/\/\u6350\u6253\u8054\u76df\u673a\u7532\r\nhelper.pro.allianceMecha && helper.pro.allianceMecha.free()\r\nhelper.pro.allianceMecha = {\r\n    setting:{donate:!0, amount:1, attack:!0, preset:0, precheck:!0, energy:!0},\r\n    state:{running:!1},\r\n\r\n    async _fight(ti) {\r\n        if (await helper.battle.mutex.acquire(2000) ) {\r\n            try {\r\n                var context = helper.battle.backup()\r\n                var o = new(__require(\"WorldBossDetailPanel\").default)\r\n                Object.assign(o, {tileInfo:ti, bossId:ti.extData.bossId}).onClickAttackBtn()\r\n                return helper.battle.setup(this.setting.preset, 9999) && helper.battle.march()            \/\/\u8bbe\u7f6e\u82f1\u96c4\u548c\u58eb\u5175\u5e76\u51fa\u5f81\r\n             }\r\n            finally {\r\n                helper.battle.restore(context);\r\n                helper.battle.mutex.release();\r\n            }\r\n        }\r\n    },\r\n\r\n    async _tileInfo(p) {\r\n        var c = __require(\"NWorldMapController\").default.instance\r\n        var o = p && await send(RequestId.GET_WORLD_INFO, {x: p.x, y: p.y, k: UserData.ServerId, marchInfo: !1, viewLevel: 0})\r\n        p = o && o.pointList && o.pointList.find(e=>e.x == p.x && e.y == p.y)\r\n        return p && (c.updateTileInfo(p, 0), c.getTileInfoByCoord(p.x, p.y, p.k, 0))\r\n    },\r\n\r\n    \/\/\u8865\u5145\u4f53\u529b\r\n   _charge() {\r\n    if (this.setting.energy) {\r\n        for(var e of UserData.getItemList()) {\r\n            if (6 === e.Data.type && e.Amount > 0) {\r\n                    return send(RequestId.ITEM_USE, {amount:1, itemid:e.ItemId});\r\n                }\r\n            }\r\n        }\r\n        return 0\r\n    },\r\n\r\n    \/\/\u4f53\u529b\u68c0\u67e5  \r\n    async _energy(ti) {\r\n        \/\/\u8ba1\u7b97\u4efb\u52a1\u4f53\u529b\r\n        var y = __require(\"TableManager\").TABLE.getTableDataById(\"monster_group\", ti.extData.bossId.toString())\r\n        var t = __require(\"FWSTool\").Obj.getPropertyByNames(y, 0, \"cost_energy\")\r\n        var s = UserData.getEnergy(1).Point\r\n        return (t <= s ? 1 : await this._charge() ? 2 : 0)\r\n    },\r\n\r\n    \/\/\u68c0\u67e5\u7f16\u961f\r\n    _precheck() {\r\n        \/\/\u5355\u5175\u68c0\u67e5(\u542b\u673a\u7532)\r\n        if (0 == this.setting.preset || 9 == this.setting.preset) {\r\n            var one = __require(\"GameTools\").default.getAttackerMyArmys().sort((t, e)=>{return t.ArmyData.power - e.ArmyData.power})[0];\r\n            if (!one || (one.battleMechaData && !helper.battle.mechaOk(one.battleMechaData.mechaId)))\r\n                return 0\r\n        }\r\n        \/\/\u9884\u8bbe\u7f16\u961f\u68c0\u67e5\r\n        if (0 < this.setting.preset && this.setting.preset < 9 && this.setting.precheck) { \r\n            var heros = __require(\"HeroController\").HeroController.getInstance().getHaveHeroCanMarchList()\r\n            var armys = __require(\"GameTools\").default.getAttackerMyArmys()\r\n            var march = UserData.PresetMarchData.getPreMarchByIndex(this.setting.preset-1)\r\n            if (!march) return 0  \r\n\r\n            \/\/\u68c0\u67e5\u82f1\u96c4\r\n            for (var i = 0; i < march.HeroIds.length; ++i) if (!heros.find((e)=>{return e._id == march.HeroIds[i]})) return 0\r\n\r\n            \/\/\u68c0\u67e5\u58eb\u5175\r\n            for (var group = {}, i = 0; i < armys.length; ++i) {var n=armys[i].ArmyData.id; group[n] = (group[n] ? group[n] : 0) + 1}\r\n            for (var e of march.Armys) {\r\n                if (e && e.ArmyId && e.isMecha && !helper.battle.mechaOk(e.mechaId)) return 0\r\n                if (e && e.ArmyId && !e.isMecha && (!group[e.ArmyId] || (group[e.ArmyId] -= e.Num)<0)) return 0\r\n            }\r\n        }\r\n        return 1\r\n    },\r\n\r\n    async _attack(boss) {\r\n        if (UserData.myMarchNum < UserData.myMarchNumMAX && this._precheck()) {\r\n            var o = await send(RequestId.ALLIANCE_GET_MEMBER_RANK_LIST, {allianceId: UserData.Alliance.Aid, start: 0, end: 30, type: 11})  \/\/\u4f24\u5bb3\r\n            if (o && !o.myRank) {\r\n                var ti = await this._tileInfo({x:boss.x, y:boss.y})\r\n                ti && await this._energy(ti) && await this._fight(ti)\r\n            }\r\n        } \r\n    },\r\n\r\n    async _donate(boss, today) {\r\n        var TABLE = __require(\"TableManager\").TABLE\r\n        var TableName = __require(\"TableName\").TableName\r\n        var GameTools = __require(\"GameTools\").default\r\n\r\n        \/\/\u83b7\u53d6\u5df2\u6350\u6570\u91cf,\u8ba1\u7b97\u5f85\u6350\u6570\u91cf\r\n        var n = this.setting.amount\r\n        var o = await send(RequestId.ALLIANCE_GET_MEMBER_RANK_LIST, {allianceId: UserData.Alliance.Aid, start: 0, end: 30, type: 10})  \/\/\u6350\u732e\r\n        o && o.myRank && (n = n - Math.floor(o.myRank.power)) \r\n        \r\n        \/\/\u514d\u8d39\u6350\u732e\r\n        if (n > 0 && today.free) {\r\n            o = await send(RequestId.ALLIANCE_BOSS_DONATE, {count: 0})\r\n            o && (n = n - o.count)\r\n        }\r\n\r\n        \/\/\u8ba1\u7b97\u53ef\u6350\u6570\u91cf\r\n        o = TABLE.getTableDataById(TableName.Alliance_Boss, boss.bossId.toString())\r\n        n = Math.min(n, o.num - boss.exp)\r\n        n = Math.min(n, Number(GameTools.getDataConfigData(25008)) - today.time)\r\n        n = Math.min(n, UserData.getItemAmount(3200001))\r\n\r\n        \/\/\u6350\u732e\r\n        n > 0 && await send(RequestId.ALLIANCE_BOSS_DONATE, {count: n})\r\n    },\r\n\r\n    async _execute() {\r\n        if (UserData.Alliance.JoinTime + parseInt(__require(\"GameTools\").default.getDataConfigData(25009)) <= ServerTime) {\r\n            var o = await send(RequestId.ALLIANCE_BOSS_GET_INFO, {})\r\n            o && o.allianceBoss && (\r\n                this.setting.donate && 0 == o.allianceBoss.state && await this._donate(o.allianceBoss, {free:o.todayFree, time:o.todayTime}),\r\n                this.setting.attack && (1 == o.allianceBoss.state || 4 == o.allianceBoss.state) && await this._attack(o.allianceBoss)\r\n            )\r\n        }\r\n    },\r\n\r\n    _onTimer() {\r\n        this._execute()\r\n    },\r\n\r\n    _start() {\r\n        this.timer || (this.timer = setInterval(this._onTimer.bind(this), 180000))\r\n    },\r\n\r\n    _stop() {\r\n        this.timer && (clearInterval(this.timer), this.timer = 0)\r\n    },\r\n\r\n    _update() {\r\n        this._save()\r\n        this._render()\r\n    },\r\n\r\n    _save() {\r\n        setItem(\"alliance-mecha\", JSON.stringify({setting:this.setting, state:this.state}))        \r\n    },\r\n\r\n    async _load() {\r\n        var o = await getItem(\"alliance-mecha\")\r\n        o && (o = JSON.parse(o)) && (this.setting = o.setting, this.state = o.state)\r\n    },\r\n\r\n    _render() {\r\n        var iframe = helper.dialog.iframe;\r\n        if (iframe && iframe.name == \"alliance-mecha\") {\r\n            iframe.contentWindow.render(this.setting, this.state)\r\n        }\r\n    },\r\n\r\n    start() {\r\n        !this.state.running && (this.state.running = !0, this._start(), this._update())\r\n    },\r\n     \r\n    stop() {\r\n        this.state.running && (this.state.running = !1, this._stop(), this._update())\r\n    },\r\n     \r\n    apply(setting) {\r\n        this.setting = setting\r\n        this._update()\r\n    },\r\n     \r\n    async init() {\r\n        await this._load()\r\n        this.state.running && this._start()\r\n    },\r\n\r\n    free() {\r\n        this._stop()\r\n    },\r\n\r\n    open() {\r\n        helper.dialog.open({name:\"alliance-mecha\", width:480, height:175, html:this.html})\r\n        this._render() \r\n    }\r\n}\r\n\r\nhelper.pro.allianceMecha.html = String.raw\r\n`<html charset=\"UTF-8\">\r\n<head>\r\n<style>\r\n    body{line-height:30px; vertical-align:top; font-size:14px; font-family:\"Helvetica\",\"Lucida Console\",\"Microsoft soft\";}\r\n    h3{display:block; margin-top:12px; margin-bottom:8px; text-align:center; width:100%}\r\n    label{margin-left:2px; margin-right:2px;}\r\n    label.counter{margin-left:4px; width:100%;}\r\n    span{margin-left:20px; margin-right:0px;}\r\n    input{color:#333;border:1px solid #999; border-radius:3px; outline-style:none; margin-right:12px; padding-top:2px; height:20px;}\r\n    input[type=\"checkbox\"]{margin-right:1px; vertical-align:top; margin-top:8px; width:14px; height:14px;}\r\n    select{color:#333; border:1px solid #999; border-radius:4px; outline-style:none; margin-left:0px; padding-top:1px; height:20px; }\r\n    button{border:1px solid #999; border-radius:3px; outline-style:none; text-align:center; margin-top:0px; width:60px; height:22px;}\r\n    button:hover{background-color:#ccc;} button:focus{background-color:#ccc;} button:active{transform: translateY(1px);}\r\n    input::-webkit-input-placeholder{color: #aaa;}\r\n    #counter{display:inline-block; color:green; margin-left:123px; width:130px;}\r\n    #state{margin-left:10px; margin-top:8px; text-align:center; height:20px}\r\n    #action{margin-left:140px; margin-top:8px; text-align:center; width:80px;}\r\n    div.panel{border:1px solid silver; border-radius:6px; margin:8px; padding:4px; padding-top:8px; padding-left:12px; box-shadow: 3px 3px 6px gray;}\r\n    .combo-box{display:inline-block; position:relative;} .combo-list{width:70px;} .combo-edit{position:absolute; padding-top:1px; width:50px; height:18px; left:1px; top:1px; border:0px;}\r\n<\/style>\r\n<\/script>      \r\n<script>\r\n    function $(a) {\r\n        return a && '#'==a[0] && document.getElementById(a.substring(1))\r\n    }\r\n\r\n    function editchange(edit) {\r\n        edit.setAttribute(\"value\", Number(edit.value.replace('\u4e2a',''))); \r\n        apply();   \r\n    }\r\n\r\n    function listchange(list) {\r\n        var edit = list.parentNode.children[\"edit\"];\r\n        var i = list.selectedIndex;\r\n        edit.value = list.options[i].innerText;\r\n        edit.setAttribute(\"value\", list.options[i].value);\r\n        list.selectedIndex = 0;\r\n        apply();\r\n    }\r\n\r\n    function apply() {\r\n        var setting = {}\r\n        setting.donate = $(\"#donate\").checked\r\n        setting.amount = Number($(\"#amount\").children[\"edit\"].getAttribute(\"value\"))\r\n        setting.attack = $(\"#attack\").checked\r\n        setting.preset = Number($(\"#preset\").value)\r\n        setting.precheck = $(\"#precheck\").checked\r\n        setting.energy = $(\"#energy\").checked\r\n        parent.helper.pro.allianceMecha.apply(setting)\r\n    }\r\n\r\n    function render(setting, state) {\r\n        $(\"#donate\").checked = setting.donate\r\n        $(\"#amount\").children[\"edit\"].value = setting.amount + '\u4e2a'\r\n        $(\"#amount\").children[\"edit\"].setAttribute(\"value\", setting.amount)\r\n\r\n        $(\"#attack\").checked = setting.attack\r\n        $(\"#preset\").value = setting.preset\r\n        $(\"#precheck\").checked = setting.precheck\r\n        $(\"#energy\").checked = setting.energy\r\n\r\n        $(\"#state\").innerText = state.running ? \"\u8fd0\u884c\u4e2d\" : \"\u672a\u8fd0\u884c\"\r\n        $(\"#state\").style.backgroundColor = state.running ? \"greenyellow\" : \"#aaa\"\r\n        $(\"#state\").style.borderRadius = \"2px\"\r\n\r\n        $(\"#action\").innerText = state.running ? \"\u505c\u6b62\" : \"\u542f\u52a8\"\r\n    }\r\n\r\n    function action() {\r\n        var o = parent.helper.pro.allianceMecha\r\n        o.state.running ? o.stop() : o.start()\r\n    }\r\n<\/script>\r\n<\/head>\r\n<body>\r\n    <h3>\u6350\u6253\u8054\u76df\u673a\u7532<\/h3>\r\n    <div class=\"panel\">\r\n        <div>\r\n            <input type=\"checkbox\" id=\"donate\" onclick=\"apply()\"><label class=\"label-text\">\u6350\u732e\u788e\u7247<\/label>\r\n            <span><\/span>\r\n            <label>\u6570\u91cf:<\/label>\r\n            <div id=\"amount\" class=\"combo-box\">\r\n                <select name=\"list\" class=\"combo-list\" onchange=\"listchange(this)\">\r\n                    <option style=\"display:none\"><\/option>\r\n                    <option value=\"1\">1\u4e2a<\/option>\r\n                    <option value=\"2\">2\u4e2a<\/option>\r\n                    <option value=\"3\">3\u4e2a<\/option>\r\n                <\/select>\r\n                <input name=\"edit\" class=\"combo-edit\" onchange=\"editchange(this)\">\r\n            <\/div>\r\n        <\/div>\r\n        <div>\r\n            <input type=\"checkbox\" id=\"attack\" onclick=\"apply()\"><label class=\"label-text\">\u653b\u51fb\u673a\u7532<\/label>\r\n            <span><\/span>\r\n            <label>\u7f16\u961f:<\/label>\r\n            <select class=\"combo-list\" id=\"preset\" onchange=\"apply()\">\r\n                <option value=\"0\">\u5355\u5175<\/option>\r\n                <option value=\"1\">\u7f16\u961f1<\/option>\r\n                <option value=\"2\">\u7f16\u961f2<\/option>\r\n                <option value=\"3\">\u7f16\u961f3<\/option>\r\n                <option value=\"4\">\u7f16\u961f4<\/option>\r\n                <option value=\"5\">\u7f16\u961f5<\/option>\r\n                <option value=\"6\">\u7f16\u961f6<\/option>\r\n                <option value=\"7\">\u7f16\u961f7<\/option>\r\n                <option value=\"8\">\u7f16\u961f8<\/option>\r\n                <option value=\"9\">\u81ea\u52a8<\/option>\r\n            <\/select>\r\n            <span><\/span>\r\n            <input type=\"checkbox\" id=\"precheck\" onclick=\"apply()\"><label>\u68c0\u67e5\u884c\u519b<\/label>\r\n            <span><\/span>\r\n            <input type=\"checkbox\" id=\"energy\" onclick=\"apply()\"><label>\u8865\u5145\u4f53\u529b<\/label>\r\n        <\/div>\r\n    <\/div>\r\n    <span id=\"state\">\u672a\u8fd0\u884c<\/span>\r\n    <button id=\"action\" onclick=\"action()\">\u542f\u52a8<\/button>\r\n<\/body>\r\n<\/html>`\r\n\r\n\r\n\/\/-------------------------------------------------------------------------------------------------\r\n\/\/\u4ee3\u9886\u9057\u8ff9\u9053\u5177\r\nhelper.pro.fortressItem && helper.pro.fortressItem.free()\r\nhelper.pro.fortressItem = {\r\n    setting: {\r\n        group:{\r\n            1: [8301701, 8301702, 8301703, 8301704, 8301705, 8301706], \r\n            2: [8301707, 8301708, 8301709, 8301710, 8301711, 8301712], \r\n            3: [8301721, 8301713, 8301714, 8301715, 8301716, 8301717, 8301718, 8301719, 8301720],\r\n            4: [8301730, 8301722, 8301723, 8301724, 8301725, 8301726, 8301727, 8301728, 8301729, 8301731],\r\n            5: [8301740, 8301732, 8301733, 8301734, 8301735, 8301736, 8301737, 8301738, 8301739, 8301741, 8301742, 8301743, 8301744],\r\n            6: [8301753, 8301745, 8301746, 8301747, 8301748, 8301749, 8301750, 8301751, 8301752, 8301754, 8301755, 8301756, 8301757]\r\n        }\r\n    },\r\n    state: {\r\n        running: !1\r\n    },\r\n    history: [],\r\n    \r\n    _log(id) {\r\n        this.history.splice(0, this.history.length-29)\r\n        this.history.push({time: ServerTime, id: id})\r\n        this._update()    \r\n    },\r\n\r\n    _iname(id) {\r\n        var RewardController = __require(\"RewardController\").RewardController\r\n        var LocalManager = __require(\"LocalManager\")\r\n        \r\n        var a = RewardController.Instance.getRewardsArrById(Number(id))\r\n        return a && a[0] ? a[0].count +'\u4e2a'+ LocalManager.LOCAL.getText(a[0].name) : ''\r\n    },\r\n\r\n    async _execute() {\r\n        var TABLE = __require(\"TableManager\").TABLE\r\n        var TableName = __require(\"TableName\").TableName\r\n\r\n        var a = UserData.getCurServerWorldSiteList()\r\n        for(var r in a) {\r\n            if (4 == a[r].DistrictData.function && 2 == a[r].State && UserData.Alliance.Aid == a[r]._trueOwnerAid) {\r\n                \/\/\u9053\u5177\u9057\u8ff9\u7f16\u53f7\r\n                var wonderId = a[r].DistrictData.id\r\n\r\n                \/\/\u83b7\u53d6\u9057\u8ff9\u9053\u5177\u5217\u8868\r\n                var o = await send(RequestId.GET_FORTRESS_CHOOSE_ITEM_REWARD_DATA, {wonderId: wonderId})\r\n\r\n                \/\/\u5165\u76df\u65f6\u95f4\u6ee1\u8db3\u8981\u6c42(3\u5c0f\u65f6\uff09\u4e14\u6709\u9886\u53d6\u6b21\u6570\r\n                var d = o && TABLE.getTableDataById(TableName.sp_fortress_item, String(o.id))\r\n                var items = this.setting.group[o.id]\r\n                if (o && d && ServerTime - o.joinTime > d.join_time && d.choose_num - o.have.length > 0) {\r\n                    \/\/\u9886\u53d6\u9053\u5177\u7d22\u5f15\r\n                    var index = -1\r\n                    for (var m = 65535, i = 0; i<o.select.length; i++) {\r\n                        \/\/\u7b2c\u4e00\u6b21\u51fa\u73b0\u5219\u63d2\u5165\u8bbe\u7f6e\u9879\uff08\u6700\u4f4e\u4f18\u5148\u7ea7\uff09\r\n                        var n = items.findIndex(id=>id == o.select[i])\r\n                        n < 0 && (n = items.push(o.select[i]) - 1, this._update())\r\n                        m > n && (m = n, index = i)\r\n                    }\r\n\r\n                    \/\/\u9886\u53d6\u9057\u8ff9\u9053\u5177\r\n                    var id = o.select[index] \r\n                    o = await send(RequestId.FORTRESS_CHOOSE_ITEM_REWARD, {wonderId: wonderId, index: index})\r\n                    o && o.reward && this._log(id)\r\n                }\r\n            }\r\n        }\r\n    },\r\n\r\n    _onTimer() {\r\n        this._execute()\r\n    },\r\n\r\n    _start() {\r\n        this.timer || (this.timer = setInterval(this._onTimer.bind(this), 180000))\r\n    },\r\n    \r\n    _stop() {\r\n        this.timer && (clearInterval(this.timer), this.timer = 0)\r\n    },\r\n        \r\n    _update() {\r\n        this._save()\r\n        this._render()\r\n    },\r\n\r\n    _save() {\r\n        setItem(\"fortress-item\", JSON.stringify({setting:this.setting, state:this.state, history:this.history}))\r\n    },\r\n\r\n    async _load() {\r\n        var o = await getItem(\"fortress-item\")\r\n        o && (o = JSON.parse(o)) && (this.setting =o.setting, this.state = o.state, this.history = o.history)\r\n    },\r\n\r\n    _render() {\r\n        function timestr(t) {var a=new Date(t*1000); return (a.getMonth()+1)+'-'+a.getDate()+\" \"+a.getHours()+\":\"+a.getMinutes().toString().padStart(2,'0')+\":\"+a.getSeconds().toString().padStart(2,'0')}\r\n        function logstr(e) {return timestr(e.time) + '  \u9886\u53d6' + this._iname(e.id)}\r\n   \r\n        var iframe = helper.dialog.iframe;\r\n        if (iframe && iframe.name == \"fortress-item\") {\r\n            var group = {}\r\n            for (var i in this.setting.group) {\r\n                var items = []\r\n                this.setting.group[i].forEach(e=>items.push({id:e, name:this._iname(e)}))\r\n                group[i] = items\r\n            }\r\n            var history = []\r\n            for (var i = this.history.length-1; i >= 0; i--) history.push(logstr.call(this, this.history[i]))\r\n            iframe.contentWindow.render(group, history, this.state)\r\n        }\r\n    },\r\n\r\n    start() {\r\n        !this.state.running && (this.state.running = !0, this._start(), this._update())\r\n    },\r\n     \r\n     stop() {\r\n        this.state.running && (this.state.running = !1, this._stop(), this._update())\r\n    },\r\n     \r\n    apply(i,items) {\r\n        this.setting.group[i] = items\r\n        this._save()\r\n    },\r\n     \r\n    async init() {\r\n        await this._load()\r\n        this.state.running && this._start()\r\n    },\r\n\r\n    free() {\r\n        this._stop()\r\n    },\r\n\r\n    dayInit() {\r\n        this.state.counter = [], this._update()\r\n    },\r\n\r\n    open() {\r\n        helper.dialog.open({name:\"fortress-item\", width:560, height:415, html:this.html})\r\n        this._render()\r\n    }\r\n}\r\n\r\nhelper.pro.fortressItem.html = String.raw\r\n`<html charset=\"UTF-8\">\r\n<head>\r\n<style>\r\n    body{line-height:30px; vertical-align:top; font-size:14px; font-family:\"Helvetica\",\"Lucida Console\",\"Microsoft soft\";}\r\n    h3{display:block; margin-top:12px; margin-bottom:8px; text-align:center; width:100%}\r\n    div.panel{border:1px solid silver; border-radius:6px; margin:8px; padding:4px; padding-left:0px; padding-right:0px; box-shadow: 3px 3px 6px gray;}\r\n    button{border:1px solid #999; border-radius:3px; outline-style:none; text-align:center; margin-top:0px; width:60px; height:22px;}\r\n    button:hover{background-color:#ccc;} button:focus{background-color:#ccc;} button:active{transform: translateY(1px);}\r\n    ul{display: flex; margin:4px; list-style-type: none; flex-flow: wrap; padding-inline-start: 0px;}\r\n    li{margin:4px; margin-left:8px; padding-left:4px; text-align: left; width: 150px; height: 26px; background: #ddd; border-radius:2px;}\r\n    .list .moving{background: transparent; color: transparent; border: 1px dashed #ddd;}  \r\n    #group{color:#333;border:1px solid #ccc; border-radius:3px; outline-style:none; margin-left:12px; margin-top:6px; width:500px;}\r\n    #content{height:180px; margin-top:4px; padding-left:4px; overflow-x:hide; overflow-y:auto;}\r\n    #history{height:75px; line-height:25px; padding-left:4px; overflow-x:hide; overflow-y:auto;} \r\n    #state{margin-left:10px; margin-top:8px; text-align:center; height:20px}\r\n    #action{margin-left:175px; margin-top:8px; text-align:center; width:80px;}\r\n<\/style>\r\n<script>\r\n    function $(a) {\r\n        return a && '#'==a[0] && document.getElementById(a.substring(1))\r\n    }\r\n\r\n    function changegroup() {\r\n        parent.helper.pro.fortressItem._render()        \r\n    }\r\n\r\n    function apply() {\r\n        var i = $(\"#group\").value, items = []\r\n        for(var li of $(\"#items\").children) items.push(li.value)\r\n        parent.helper.pro.fortressItem.apply(i, items)\r\n    }\r\n\r\n    function render(group, history, state) {\r\n        $(\"#items\").innerHTML = \"\"\r\n        var i = $(\"#group\").value\r\n        for(var e of group[i]) {\r\n            var li = document.createElement('li')\r\n            li.draggable= !0\r\n            li.value = e.id\r\n            li.innerText = e.name\r\n\r\n            $(\"#items\").appendChild(li)\r\n        }\r\n\r\n        var html = \"\"\r\n        history.forEach(e=>html += \"\" == html ? e : \"<br>\"+e)\r\n        $(\"#history\").innerHTML = html\r\n\r\n        $(\"#state\").innerText = state.running ? \"\u8fd0\u884c\u4e2d\" : \"\u672a\u8fd0\u884c\"\r\n        $(\"#state\").style.backgroundColor = state.running ? \"greenyellow\" : \"#aaa\"\r\n        $(\"#state\").style.borderRadius = \"2px\"\r\n\r\n        $(\"#action\").innerText = state.running ? \"\u505c\u6b62\" : \"\u542f\u52a8\"\r\n    }\r\n\r\n    function action() {\r\n        var o = parent.helper.pro.fortressItem\r\n        o.state.running ? o.stop() : o.start()\r\n    }\r\n<\/script>\r\n<\/head>\r\n<body>\r\n    <h3>\u9886\u53d6\u9057\u8ff9\u9053\u5177<\/h3>\r\n    <div class=\"panel\">\r\n        <select id=\"group\" onchange=\"changegroup()\">\r\n            <option value=1>\u8981\u585e\u7b49\u7ea71<\/option>\r\n            <option value=2>\u8981\u585e\u7b49\u7ea72<\/option>\r\n            <option value=3>\u8981\u585e\u7b49\u7ea73<\/option>\r\n            <option value=4>\u8981\u585e\u7b49\u7ea74<\/option>\r\n            <option value=5>\u8981\u585e\u7b49\u7ea75<\/option>\r\n            <option value=6>\u8981\u585e\u7b49\u7ea76<\/option>\r\n        <\/select>\r\n        <div id=\"content\">\r\n            <ul class=\"list\" id=\"items\">\r\n                <li draggable=\"true\">1<\/li>\r\n                <li draggable=\"true\">2<\/li>\r\n                <li draggable=\"true\">3<\/li>\r\n                <li draggable=\"true\">4<\/li>\r\n                <li draggable=\"true\">5<\/li>\r\n            <\/ul>\r\n        <\/div> \r\n    <\/div>\r\n    <div class=\"panel\">\r\n        <div id=\"history\">\r\n        <\/div>\r\n    <\/div>\r\n    <span id=\"state\">\u672a\u8fd0\u884c<\/span>\r\n    <button id=\"action\" onclick=\"action()\">\u542f\u52a8<\/button>\r\n<\/body>\r\n\r\n<script>\r\n    let list = document.querySelector('.list')\r\n    let currentLi\r\n    list.addEventListener('dragstart',(e)=>{\r\n        e.dataTransfer.effectAllowed = 'move'\r\n        currentLi = e.target\r\n        setTimeout(()=>{\r\n            currentLi.classList.add('moving')\r\n        })\r\n    })\r\n\r\n    list.addEventListener('dragenter',(e)=>{\r\n        e.preventDefault()\r\n        if(e.target === currentLi||e.target === list){\r\n            return\r\n        }\r\n        let liArray = Array.from(list.childNodes)\r\n        let currentIndex = liArray.indexOf(currentLi)\r\n        let targetindex = liArray.indexOf(e.target)\r\n\r\n        if(currentIndex<targetindex){\r\n \r\n            list.insertBefore(currentLi,e.target.nextElementSibling)\r\n        }else{\r\n  \r\n            list.insertBefore(currentLi,e.target)\r\n        }\r\n    })\r\n    list.addEventListener('dragover',(e)=>{\r\n        e.preventDefault()\r\n    })\r\n    list.addEventListener('dragend',(e)=>{\r\n        currentLi.classList.remove('moving')\r\n        apply()\r\n    })\r\n<\/script>\r\n\r\n<\/html>`\r\n\r\n\r\n\/\/-------------------------------------------------------------------------------------------------\r\n\/\/\u653b\u51fb\u6218\u4e89\u4e4b\u6e90\r\nhelper.pro.worldBoss && helper.pro.worldBoss.free()\r\nhelper.pro.worldBoss = {\r\n    setting:{preset:1, count:5, precheck:!0, energy:!1},\r\n    state:{counter:0, running:!1},\r\n\r\n    async _fight(ti) {\r\n        if (await helper.battle.mutex.acquire(2000) ) {\r\n            try {\r\n                var context = helper.battle.backup()\r\n                var o = new(__require(\"WorldBossDetailPanel\").default)\r\n                Object.assign(o, {tileInfo:ti, bossId:ti.extData.bossId}).onClickAttackBtn()\r\n                return helper.battle.setup(this.setting.preset, 9999) && helper.battle.march()            \/\/\u8bbe\u7f6e\u82f1\u96c4\u548c\u58eb\u5175\u5e76\u51fa\u5f81\r\n             }\r\n            finally {\r\n                helper.battle.restore(context);\r\n                helper.battle.mutex.release();\r\n            }\r\n        }\r\n    },\r\n\r\n    async _tileInfo(p) {\r\n        var c = __require(\"NWorldMapController\").default.instance\r\n        var o = p && await send(RequestId.GET_WORLD_INFO, {x: p.x, y: p.y, k: UserData.ServerId, marchInfo: !1, viewLevel: 0})\r\n        p = o && o.pointList && o.pointList.find(e=>e.x == p.x && e.y == p.y)\r\n        return p && (c.updateTileInfo(p, 0), c.getTileInfoByCoord(p.x, p.y, p.k, 0))\r\n    },\r\n\r\n    \/\/\u8865\u5145\u4f53\u529b\r\n   _charge() {\r\n    if (this.setting.energy) {\r\n        for(var e of UserData.getItemList()) {\r\n            if (6 === e.Data.type && e.Amount > 0) {\r\n                    return send(RequestId.ITEM_USE, {amount:1, itemid:e.ItemId});\r\n                }\r\n            }\r\n        }\r\n        return 0\r\n    },\r\n\r\n    \/\/\u4f53\u529b\u68c0\u67e5  \r\n    async _energy(ti) {\r\n        \/\/\u8ba1\u7b97\u4efb\u52a1\u4f53\u529b\r\n        var y = __require(\"TableManager\").TABLE.getTableDataById(\"monster_group\", ti.extData.bossId.toString())\r\n        var t = __require(\"FWSTool\").Obj.getPropertyByNames(y, 0, \"cost_energy\")\r\n        var s = UserData.getEnergy(1).Point\r\n        return (t <= s ? 1 : await this._charge() ? 2 : 0)\r\n    },\r\n\r\n    \/\/\u68c0\u67e5\u7f16\u961f\r\n    _precheck() {\r\n        \/\/\u5355\u5175\u68c0\u67e5(\u542b\u673a\u7532)\r\n        if (0 == this.setting.preset || 9 == this.setting.preset) {\r\n            var one = __require(\"GameTools\").default.getAttackerMyArmys().sort((t, e)=>{return t.ArmyData.power - e.ArmyData.power})[0];\r\n            if (!one || (one.battleMechaData && !helper.battle.mechaOk(one.battleMechaData.mechaId)))\r\n                return 0\r\n        }\r\n        \/\/\u9884\u8bbe\u7f16\u961f\u68c0\u67e5\r\n        if (0 < this.setting.preset && this.setting.preset < 9 && this.setting.precheck) { \r\n            var heros = __require(\"HeroController\").HeroController.getInstance().getHaveHeroCanMarchList()\r\n            var armys = __require(\"GameTools\").default.getAttackerMyArmys()\r\n            var march = UserData.PresetMarchData.getPreMarchByIndex(this.setting.preset-1)\r\n            if (!march) return 0  \r\n\r\n            \/\/\u68c0\u67e5\u82f1\u96c4\r\n            for (var i = 0; i < march.HeroIds.length; ++i) if (!heros.find((e)=>{return e._id == march.HeroIds[i]})) return 0\r\n\r\n            \/\/\u68c0\u67e5\u58eb\u5175\r\n            for (var group = {}, i = 0; i < armys.length; ++i) {var n=armys[i].ArmyData.id; group[n] = (group[n] ? group[n] : 0) + 1}\r\n            for (var e of march.Armys) {\r\n                if (e && e.ArmyId && e.isMecha && !helper.battle.mechaOk(e.mechaId)) return 0\r\n                if (e && e.ArmyId && !e.isMecha && (!group[e.ArmyId] || (group[e.ArmyId] -= e.Num)<0)) return 0\r\n            }\r\n        }\r\n        return 1\r\n    },\r\n\r\n    async _attack(boss) {\r\n        if (UserData.myMarchNum < UserData.myMarchNumMAX && this._precheck()) {\r\n            var o = await send(RequestId.GET_BOSS_ATTACK_INFO, {})\r\n            if (o && o.worldBossAttackCount < 5) {\r\n                var ti = await this._tileInfo({x:boss.x, y:boss.y})\r\n                return ti && await this._energy(ti) && await this._fight(ti)\r\n            }\r\n        } \r\n    },\r\n\r\n    async _execute() {\r\n        if (this.state.counter < this.setting.count && UserData.FunctionOn(__require(\"GameDefine\").FunctionKey.world_boss)) {\r\n            var d = new Date(ServerTime*1000), h = d.getHours(), m = d.getMinutes(), w = d.getDay()\r\n            if (h == 4 || h == 20 || (w > 0 && h == 12 || w == 0 && (h==12 && m>=5 || h==13 && m<5))) {\r\n                var o = await send(RequestId.getBossInfo, {})\r\n                o && o.bossId && await this._attack(o) && (this.state.counter++, this._update())\r\n            }\r\n        }\r\n    },\r\n\r\n    _onTimer() {\r\n        this._execute()\r\n    },\r\n\r\n    _start() {\r\n        this.timer || (this.timer = setInterval(this._onTimer.bind(this), 10000))\r\n    },\r\n\r\n    _stop() {\r\n        this.timer && (clearInterval(this.timer), this.timer = 0)\r\n    },\r\n\r\n    _update() {\r\n        this._save()\r\n        this._render()\r\n    },\r\n\r\n    _save() {\r\n        setItem(\"world-boss\", JSON.stringify({setting:this.setting, state:this.state}))        \r\n    },\r\n\r\n    async _load() {\r\n        var o = await getItem(\"world-boss\")\r\n        o && (o = JSON.parse(o)) && (this.setting = o.setting, this.state = o.state)\r\n    },\r\n\r\n    _render() {\r\n        var iframe = helper.dialog.iframe;\r\n        if (iframe && iframe.name == \"world-boss\") {\r\n            iframe.contentWindow.render(this.setting, this.state)\r\n        }\r\n    },\r\n\r\n    start() {\r\n        !this.state.running && (this.state.running = !0, this._start(), this._update())\r\n    },\r\n     \r\n    stop() {\r\n        this.state.running && (this.state.running = !1, this._stop(), this._update())\r\n    },\r\n     \r\n    apply(setting) {\r\n        this.setting = setting\r\n        this._update()\r\n    },\r\n     \r\n    async init() {\r\n        await this._load()\r\n        this.state.running && this._start()\r\n    },\r\n\r\n    free() {\r\n        this._stop()\r\n    },\r\n\r\n    dayInit() {\r\n        this.state.counter = 0, this._update()\r\n    },\r\n\r\n    open() {\r\n        helper.dialog.open({name:\"world-boss\", width:500, height:175, html:this.html})\r\n        this._render() \r\n    }\r\n}\r\n\r\nhelper.pro.worldBoss.html = String.raw\r\n`<html charset=\"UTF-8\">\r\n<head>\r\n<style>\r\n    body{line-height:30px; vertical-align:top; font-size:14px; font-family:\"Helvetica\",\"Lucida Console\",\"Microsoft soft\";}\r\n    h3{display:block; margin-top:12px; margin-bottom:8px; text-align:center; width:100%}\r\n    span{margin-left:12px}\r\n    input{color:#333;border:1px solid #999; border-radius:3px; outline-style:none; margin-right:12px; padding-top:2px; height:20px;}\r\n    input[type=\"checkbox\"]{margin-right:1px; vertical-align:top; margin-top:8px; width:14px; height:14px;}\r\n    select{color:#333; border:1px solid #999; border-radius:4px; outline-style:none; margin-left:0px; padding-top:1px; height:20px; }\r\n    button{border:1px solid #999; border-radius:3px; outline-style:none; text-align:center; margin-top:0px; width:60px; height:22px;}\r\n    button:hover{background-color:#ccc;} button:focus{background-color:#ccc;} button:active{transform: translateY(1px);}\r\n    input::-webkit-input-placeholder{color: #aaa;}\r\n    #counter{display:inline-block; color:green; width:100%}\r\n    #state{margin-left:10px; margin-top:8px; text-align:center; height:20px}\r\n    #action{margin-left:140px; margin-top:8px; text-align:center; width:80px;}\r\n    div.panel{border:1px solid silver; border-radius:6px; margin:8px; padding:4px; padding-top:8px; padding-left:12px; box-shadow: 3px 3px 6px gray;}\r\n    .combo-box{display:inline-block; position:relative;} .combo-list{width:70px;} .combo-edit{position:absolute; padding-top:1px; width:50px; height:18px; left:1px; top:1px; border:0px;}\r\n<\/style>\r\n<\/script>      \r\n<script>\r\n    function $(a) {\r\n        return a && '#'==a[0] && document.getElementById(a.substring(1))\r\n    }\r\n\r\n    function apply() {\r\n        var setting = {}\r\n        setting.preset = Number($(\"#preset\").value)\r\n        setting.count = Number($(\"#count\").value)\r\n        setting.precheck = $(\"#precheck\").checked\r\n        setting.energy = $(\"#energy\").checked\r\n        parent.helper.pro.worldBoss.apply(setting)\r\n    }\r\n\r\n    function render(setting, state) {\r\n        $(\"#preset\").value = setting.preset\r\n        $(\"#count\").value = setting.count\r\n        $(\"#precheck\").checked = setting.precheck\r\n        $(\"#energy\").checked = setting.energy\r\n        $(\"#counter\").innerText = state.counter ? '\u5df2\u653b\u51fb' + state.counter +'\u6b21' : '\u3000'\r\n        $(\"#counter\").style.color = state.counter >= setting.count ? \"green\" : state.running ? \"purple\" : \"black\"\r\n\r\n        $(\"#state\").innerText = state.running ? \"\u8fd0\u884c\u4e2d\" : \"\u672a\u8fd0\u884c\"\r\n        $(\"#state\").style.backgroundColor = state.running ? \"greenyellow\" : \"#aaa\"\r\n        $(\"#state\").style.borderRadius = \"2px\"\r\n\r\n        $(\"#action\").innerText = state.running ? \"\u505c\u6b62\" : \"\u542f\u52a8\"\r\n    }\r\n\r\n    function action() {\r\n        var o = parent.helper.pro.worldBoss\r\n        o.state.running ? o.stop() : o.start()\r\n    }\r\n<\/script>\r\n<\/head>\r\n<body>\r\n    <h3>\u653b\u51fb\u6218\u4e89\u4e4b\u6e90<\/h3>\r\n    <div class=\"panel\">\r\n        <label>\u7f16\u961f\uff1a<\/label>\r\n        <select id=\"preset\" class=\"combo-list\" onchange=\"apply()\">\r\n            <option value=\"1\">\u7f16\u961f1<\/option>\r\n            <option value=\"2\">\u7f16\u961f2<\/option>\r\n            <option value=\"3\">\u7f16\u961f3<\/option>\r\n            <option value=\"4\">\u7f16\u961f4<\/option>\r\n            <option value=\"5\">\u7f16\u961f5<\/option>\r\n            <option value=\"6\">\u7f16\u961f6<\/option>\r\n            <option value=\"7\">\u7f16\u961f7<\/option>\r\n            <option value=\"8\">\u7f16\u961f8<\/option>\r\n            <option value=\"9\">\u81ea\u52a8<\/option>\r\n        <\/select>\r\n        <span><\/span>\r\n        <label>\u6b21\u6570\uff1a<\/label>\r\n        <select id=\"count\" class=\"combo-list\" onchange=\"apply()\">\r\n            <option value=\"1\">1\u6b21<\/option>\r\n            <option value=\"2\">2\u6b21<\/option>\r\n            <option value=\"3\">3\u6b21<\/option>\r\n            <option value=\"4\">4\u6b21<\/option>\r\n            <option value=\"5\">5\u6b21<\/option>\r\n        <\/select>\r\n        <span><\/span>\r\n        <input type=\"checkbox\" id=\"precheck\" onclick=\"apply()\"><label>\u68c0\u67e5\u884c\u519b<\/label>\r\n        <span><\/span>\r\n        <input type=\"checkbox\" id=\"energy\" onclick=\"apply()\"><label>\u8865\u5145\u4f53\u529b<\/label>\r\n        <br>\r\n        <label id=\"counter\"><\/label>\r\n    <\/div>\r\n    <span id=\"state\">\u672a\u8fd0\u884c<\/span>\r\n    <button id=\"action\" onclick=\"action()\">\u542f\u52a8<\/button>\r\n<\/body>\r\n<\/html>`\r\n\r\n\r\n\/\/-------------------------------------------------------------------------------------------------\r\n\/\/\u514d\u53d7\u653b\u51fb\u4fdd\u62a4\r\nhelper.pro.avoidAttacked && helper.pro.avoidAttacked.free()\r\nhelper.pro.avoidAttacked = {\r\n    setting: {\r\n        factor: {mecha: 2.0, power: 1.1, restraint: 2.0},\r\n        option: {shield:!0, move_city:!0, assembly:!0},\r\n        propitem: 0,\r\n        block: 0,\r\n        teams: 12345678\r\n    },\r\n    state: {\r\n        running: !1\r\n    },\r\n    marchList: [],\r\n    history: [],\r\n\r\n    \/\/---------------------------------------------------------------------------------------------\r\n    \/\/ id: 0-\u81ea\u52a8\u9009\u62e9, 200004-4\u5c0f\u65f6\u62a4\u76fe 200005-8\u5c0f\u65f6\u62a4\u76fe 200006-24\u5c0f\u65f6\u62a4\u76fe\r\n    async _shieldProtect(id) {\r\n        \/\/\u5b58\u5728\u62a4\u76fe\r\n        if (UserData.ShieldTime > ServerTime) return !0\r\n\r\n        \/\/\u6218\u4e89\u72b6\u6001\r\n        var e = UserData.Buff.StatePool[\"41001\"]\r\n        if (e && e.EndTime > ServerTime) return !1\r\n\r\n        \/\/\u68c0\u67e5\u9053\u5177\r\n        id || (id = UserData.getItemAmount(200004) ? 200004 : UserData.getItemAmount(200005) ? 200005 : 200006) \r\n        if (UserData.getItemAmount(id) == 0) return !1  \r\n\r\n        \/\/\u6dfb\u52a0\u62a4\u76fe\r\n        return await send(RequestId.PeaceShieldHandler, {itemId:id, amount:1, isPurchase:0})    \r\n    },\r\n\r\n    \/\/---------------------------------------------------------------------------------------------\r\n    _randomBase(i) {\r\n        if (i>=0 && i<=9) {\r\n            \/\/ i=0\u8868\u793a\u5168\u5730\u56fe,\u968f\u673a\u9009\u62e9\u4e00\u5757\u533a\u57df\r\n            i = i > 0 ? i-1 : Math.min(Math.floor(Math.random()*9), 8)\r\n\r\n            \/\/\u4e5d\u5757\u533a\u57df\u57fa\u51c6\u5750\u6807\r\n            var x = (i % 3) * 272 + 136\r\n            var y = Math.floor(i \/ 3) * 317 + 158\r\n\r\n            \/\/\u57fa\u51c6\u5076\u6570\u5750\u6807\r\n            y % 2 == 1 && y++\r\n            return {x:x, y:y}\r\n        }\r\n    },\r\n\r\n    _randomDest(e) {\r\n        \/\/\u968f\u673a\u540c\u5076\u5750\u6807\uff0c\u5750\u6807\u8303\u56f4x=base.x-36~base.x+36, y=base.y-36~base.y+36\r\n        var x = Math.floor(e.x - 36 + Math.random()*72), y = Math.floor(e.y - 36 + Math.random()*72)\r\n        x % 2 == 0 && y % 2 == 1 && y++\r\n        x % 2 == 1 && y % 2 == 0 && y++\r\n        return {x:x, y:y}        \r\n    },\r\n\r\n    _canMove(o, e) {\r\n        \/\/\u68c0\u67e5\u5750\u6807\u662f\u7a7a\u5730\u4e14\u4e0d\u5c5e\u4e8e\u5176\u4ed6\u76df\u9886\u5730\r\n        var u = __require(\"NWorldMapUtils\").NWorldMapUtils\r\n        var t = __require(\"NWorldMapTerritoryController\").default.instance.getAllianceIdByPoint(e.x, e.y)\r\n        return u.checkTileArea(e.x, e.y, UserData.ServerId, 0) && u.checkCanMove(e.x, e.y) && (t <= 0 || t == UserData.Alliance.Aid) && !o.pointList.find(i=>i.x == e.x && i.y == e.y) \r\n    },\r\n\r\n    async _updateMap(b) {\r\n        var a = __require(\"NWorldMapController\").default.instance, y = __require(\"NWorldMapMarchController\").default.instance\r\n        var g = __require(\"NWorldMapTerritoryModel\").default.instance, f = __require(\"NWorldMapData\").default.instance, d = __require(\"WorldMapMsgs\")    \r\n\r\n        \/\/\u66f4\u65b0\u5750\u6807\u4fe1\u606f\r\n        var k = UserData.ServerId, r = new Map, s \r\n        var o = await send(RequestId.GET_WORLD_INFO, {x: b.x, y: b.y, k: k, rid: 0, width: 14, height: 20, marchInfo: !0, viewLevel: 1})\r\n        o && o.pointList && o.pointList.forEach(e=>s = a.updateTileInfo(e, 1), s && r.set(s, !0)) \r\n        d.send(d.Names.WorldMapUpdateViewPort, r)\r\n\r\n        \/\/\u66f4\u65b0\u884c\u519b\u4fe1\u606f\r\n        o && o.marchList && (y.model.dealMarchDataFromNowWorldMarchData(o.marchList, !0), y.model.addMonsterDefenderMarchData())\r\n        d.send(d.Names.WorldMapMarchsInit, null)\r\n\r\n        \/\/\u66f4\u65b0\u8054\u76df\u9886\u5730\r\n        var t = await send(RequestId.GET_TERRITORY_INFO, {x: b.x, y: b.y, k: k, width: 14, height: 20})\r\n        t && t.infos && (g.clearAlianceTerritory(), g.updateAllianceTerritory(t.infos, !1, k))\r\n\r\n        return o\r\n    },\r\n\r\n    async _randomTile(i) {\r\n        var b = this._randomBase(i), o = await this._updateMap(b), e = this._randomDest(b), n = 0\r\n        \/\/\u6700\u591a\u5c1d\u8bd5100\u6b21\r\n        while (o && e && ++n <= 100) { \r\n            if (this._canMove(o, e) && this._canMove(o, {x:e.x, y:e.y-2}) && this._canMove(o, {x:e.x-1, y:e.y-1}) && this._canMove(o, {x:e.x+1, y:e.y-1})) return e\r\n            e = this._randomDest(b) \r\n        }\r\n    },\r\n\r\n    async _moveProtect(i) {\r\n        if (0 == UserData.myMarchNum && UserData.getItemAmount(200003)) {\r\n            var e = await this._randomTile(i)\r\n\r\n            \/*\u96f7\u4e91\u6280\u80fd,\u9632\u5b88\u65f6\u4e0d\u4f7f\u7528\u96f7\u4e91\u6280\u80fd\r\n            var n = parseInt(__require(\"GameTools\").default.getDataConfigData(20214233)) \/\/1781000\r\n            var o = n &&__require(\"GameTools\").default.getCitySkillConfigDataBySkinId(n, 0)\r\n            var r = n && UserData.getCitySkillDataById(n)\r\n            e = o && r && o.times_perday > r.Count && {itemId:0, amount:0, isPurchase:0, x:e.x, y:e.y, citySkill:1}\r\n            *\/\r\n\r\n            \/\/\u9053\u5177\u8fc1\u57ce\r\n            var o = e && await send(RequestId.MOVE_CITY_POSITION, {itemId:200003, amount:1, isPurchase:0, x:e.x, y:e.y, citySkill:0})\r\n            o ? __require(\"WorldMapMsgs\").send(__require(\"WorldMapMsgs\").Names.WorldMapUpdateViewPort, null) : console.log(e)\r\n            return o\r\n        }\r\n    },\r\n\r\n    \/\/---------------------------------------------------------------------------------------------\r\n    async _gather(ti, preset) {\r\n        if (await helper.battle.mutex.acquire(2000)) {\r\n            try {\r\n                var context = helper.battle.backup()\r\n                var ri = __require(\"NWorldMapModel\").default.instance.getResourceInfoByTileId(ti.id)\r\n                Object.assign(new(__require(\"NWorldResourcePopup\").default), {_tileInfo: ti, _resInfo: ri}).Attack()  \/\/ \u91c7\u96c6\r\n                return helper.battle.setup(preset, 9999) && helper.battle.march()  \/\/\u8bbe\u7f6e\u82f1\u96c4\u548c\u58eb\u5175\u5e76\u51fa\u5f81\r\n            }\r\n            finally {\r\n                helper.battle.restore(context)\r\n                helper.battle.mutex.release()\r\n            }\r\n        }\r\n    },\r\n\r\n    async _tileInfo(p) {\r\n        var c = __require(\"NWorldMapController\").default.instance\r\n        return p && (c.updateTileInfo(p, 0), c.getTileInfoByCoord(p.x, p.y, p.k, 0))\r\n    },\r\n\r\n    async _searchResource() {\r\n        for(var i = 5; i >= 1; --i) {\r\n            for(var t of [101, 501, 701]) {\r\n                var o = await send(RequestId.WORLD_SEARCH_MONSTER, {groupType:t+i, maxLevel:i, minLevel:i, pointType:2})\r\n                if (o && o.point && o.point.r) return o.point\r\n            }\r\n        }\r\n    },\r\n\r\n    async _gatherProtect(t) {\r\n        var n = UserData.myMarchNumMAX - UserData.myMarchNum\r\n        var s = t.toString(), r = !1\r\n        for(var o, i = 0; i < n; ++i) {\r\n            o = s[i] && await this._searchResource()\r\n            o = o && this._tileInfo(o)\r\n            r = o && await this._gather(o, Number(s[i])) || r\r\n        }\r\n        return r\r\n    }, \r\n\r\n    \/\/---------------------------------------------------------------------------------------------\r\n    async _assembly(ti, preset) {\r\n        if (await helper.battle.mutex.acquire(2000)) {\r\n            try {\r\n                var context = helper.battle.backup()\r\n                Object.assign(wmnew(__require(\"NWorldMapAssemblyEnemyComponent\").default), {tileInfo:ti}).StartAssembly(null, 0)\r\n                return helper.battle.setup(preset, 9999) && helper.battle.march()   \r\n            }\r\n            finally {\r\n                helper.battle.restore(context)\r\n                helper.battle.mutex.release()\r\n            }\r\n        }\r\n    },\r\n\r\n    \/\/\u641c\u7d22\u6218\u9524\r\n    async _searchHammer() {\r\n\r\n        var id = __require(\"WorldMonsterModel\").WorldMonsterModel.Instance.assembleMonsterList[0].id\r\n        var o = send(RequestId.WORLD_SEARCH_MONSTER, {groupType: id, pointType: 3, minLevel: 10, maxLevel: 80})\r\n        return o && o.point\r\n    },\r\n\r\n    \/\/\u8865\u5145\u4f53\u529b\r\n    async _charge() {\r\n        if (UserData.getEnergy(1).Point < 10) {\r\n            for(var e of UserData.getItemList()) if (6 === e.Data.type && e.Amount > 0) return send(RequestId.ITEM_USE, {amount:1, itemid:e.ItemId})\r\n            return !1\r\n        }\r\n        return !0\r\n    },\r\n\r\n    async _assemblyProtect(t) {\r\n        var n = UserData.myMarchNumMAX - UserData.myMarchNum && await this._charge()\r\n        var s = t.toString(), r = !1\r\n        for(var o, i = 0; i < n; ++i) {\r\n            o = s[i] && await _charge() && await this._searchHammer()\r\n            o = o && this._tileInfo(o)\r\n            o = o && await this._assembly(o, Number(s[i]))\r\n            r = (o && this.marchList.push(o), this.marchList.length>8 && this.marchList.splice(0,1), o || r)\r\n        }\r\n        return r\r\n    },\r\n\r\n    \/\/---------------------------------------------------------------------------------------------\r\n    \/\/\u9632\u5b88\u4e09\u519b\u5175\u529b\r\n    _defenderArmyPower() {\r\n        var NBattleModel = __require(\"NBattleModel\").NBattleModel\r\n        var HeroController = __require(\"HeroController\").HeroController\r\n        var NBattlePositionBiz = __require(\"NBattlePositionBiz\").NBattlePositionBiz\r\n        var TableName = __require(\"TableName\").TableName\r\n        var TABLE = __require(\"TableManager\").TABLE\r\n        var GameTools = __require(\"GameTools\")\r\n\r\n        var heros = HeroController.getInstance().getHaveHeroCanMarchList()\r\n          , armys = GameTools.default.getAttackerMyArmys()\r\n          , total = {}\r\n\r\n        \/\/\u68c0\u67e5\u82f1\u96c4\r\n        NBattleModel.instance.attackerHeros = HeroController.getInstance().getProtectHeroListId()\r\n        NBattleModel.instance.myMaxArmysNum = NBattlePositionBiz.getPositionCount(UserData.Level)\r\n        for (var hero of NBattleModel.instance.attackerHeros) if (!heros.find(e=>e._id == hero)) return {1:0, 2:0, 3:0}\r\n\r\n        \/\/\u8ba1\u7b97\u9632\u5b88\u5175\u529b\r\n        armys.forEach(e=>{var n = e.ArmyData.id; total[n] = (total[n] ? total[n] : 0) + 1})\r\n        for (var r = {}, p = {}, c, n, b, l, d, t, i = 0, a = UserData.DefenseArmyInfo; i < a.length; ++i) {\r\n            c = r[a[i].armyId] ? r[a[i].armyId] : 0                   \/\/\u5df2\u7528\u58eb\u5175\u6570\r\n            n = NBattleModel.instance.getMaxCoutByPos(a[i].pos)       \/\/\u6700\u5927\u58eb\u5175\u6570\r\n            b = total[a[i].armyId] - c                                \/\/\u5269\u4f59\u58eb\u5175\u6570\r\n            l = n > b ? b : n                                         \/\/\u5b9e\u9645\u58eb\u5175\u6570\r\n            d = TABLE.getTableDataById(TableName.ARMY, a[i].armyId)\r\n            d && (\r\n                d.mecha_id ? helper.battle.mechaOk(d.mecha_id) && (\r\n                    t = d.type.toString().substring(0, 1),\r\n                    p[t] = (p[t] ? p[t] : 0) + d.power * n * this.setting.factor.mecha\r\n                ) : (\r\n                    r[a[i].armyId] = c + l, \r\n                    t = a[i].armyId.toString().substring(0, 1),           \/\/\u5175\u79cd\r\n                    p[t] = (p[t] ? p[t] : 0) + d.power * l\r\n                )\r\n            ) \r\n        }\r\n        \/* \u7531\u4e8e\u653b\u51fb\u884c\u519b\u58eb\u5175\u660e\u7ec6\u4e0d\u5305\u542b\u519b\u9635\u9644\u52a0\u58eb\u5175\uff0c\u6682\u65f6\u4e0d\u8003\u8651\u519b\u9635\u9644\u52a0\u5175\u529b\r\n        \/\/\u519b\u9635\u9644\u52a0\u5175\u529b\r\n        if (UserData.DefenseExtraArmy) {\r\n            i = UserData.DefenseExtraArmy.armyId                  \/\/\u58eb\u5175Id\r\n            n = UserData.DefenseExtraArmy.armyNum                 \/\/\u6700\u5927\u58eb\u5175\u6570\r\n            c = r[i] ? r[i] : 0                                   \/\/\u5df2\u7528\u58eb\u5175\u6570\r\n            b = total[i] - c                                      \/\/\u5269\u4f59\u58eb\u5175\u6570\r\n            l = n > b ? b : n                                     \/\/\u5b9e\u9645\u58eb\u5175\u6570\r\n            d = TABLE.getTableDataById(TableName.ARMY, i)\r\n            t = i.toString().substring(0, 1)\r\n            p[t] = (p[t] ? p[t] : 0) + d.power * l\r\n        }\r\n        *\/\r\n        return p\r\n    },\r\n\r\n    \/\/\u8fdb\u653b\u4e09\u519b\u5175\u529b\r\n    _attackerArmyPower() {\r\n        var TABLE = __require(\"TableManager\").TABLE\r\n        var TableName = __require(\"TableName\").TableName\r\n\r\n        \/\/\u8ba1\u7b97\u884c\u519b\u603b\u5175\u529b(\u5305\u62ec\u96c6\u7ed3)\r\n        for(var p = {}, i = 0; i < this.attacker.list.length; ++i) {\r\n            this.attacker.list[i].armys.forEach(e=>{\r\n                var t, d = TABLE.getTableDataById(TableName.ARMY, e.armyId)\r\n                d && (\r\n                    d.mecha_id ? (\r\n                        \/\/\u673a\u7532\u56e0\u5b50\u4fee\u6b63\u5175\u529b\r\n                        t = d.type.toString().substring(0, 1),                \/\/t:\u5175\u79cd  1-\u9646\u519b 2-\u6d77\u519b 3-\u7a7a\u519b\r\n                        p[t] = (p[t] ? p[t] : 0) + d.power * e.armyNum * this.setting.factor.mecha\r\n                    ) : (\r\n                        t = e.armyId.toString().substring(0, 1),           \/\/\u5175\u79cd\r\n                        p[t] = (p[t] ? p[t] : 0) + d.power * e.armyNum\r\n                    )\r\n                )  \r\n            })\r\n        }\r\n        return p\r\n    },\r\n\r\n    \/\/\u653b\u5b88\u4e09\u519b\u5175\u529b\u7efc\u5408\u5bf9\u6bd4\r\n    _compareArmyPower() {\r\n        var r = (this.attacker.point.p.power && UserData.Power ? this.attacker.point.p.power \/ UserData.Power : 1) * this.setting.factor.power\r\n        var t = this.setting.factor.restraint\r\n        var k = this._attackerArmyPower()\r\n        var n = this._defenderArmyPower()\r\n\r\n        console.log(\"\u653b\u5b88\u4e09\u519b\u5175\u529b\u53ca\u6218\u529b\u7cfb\u6570:\", k, n, r)\r\n\r\n        \/\/\u4e09\u519b\u5404\u81ea\u519b\u529b\u5bf9\u6bd4,\u52a0\u5165\u6218\u529b\u6bd4\u4e58\u4ee5\u6218\u529b\u56e0\u5b50\u540e\u7684\u56db\u6b21\u65b9\r\n        r = r * r * r * r\r\n        n[1] = (n[1]?n[1]:0)-(k[1]?k[1]:0)*r\r\n        n[2] = (n[2]?n[2]:0)-(k[2]?k[2]:0)*r\r\n        n[3] = (n[3]?n[3]:0)-(k[3]?k[3]:0)*r\r\n\r\n        console.log(\"\u6218\u529b\u4fee\u6b63\u540e\u4e09\u519b\u5175\u529b\u5dee:\", n)\r\n\r\n        \/\/\u7efc\u5408\u4e09\u519b\u6218\u529b\u5bf9\u6bd4,\u52a0\u5165\u514b\u5236\u56e0\u5b50\r\n        n[1]<0 && n[2]>0 && (n[1]+n[2]*t>=0 ? (n[2] += n[1]\/t, n[1] = 0) : (n[1] += n[2]*t, n[2] = 0))\r\n        n[1]<0 && n[3]>0 && (n[1]+n[3]\/t>=0 ? (n[3] += n[1]*t, n[1] = 0) : (n[1] += n[3]\/t, n[3] = 0))\r\n\r\n        n[2]<0 && n[3]>0 && (n[2]+n[3]*t>=0 ? (n[3] += n[2]\/t, n[2] = 0) : (n[2] += n[3]*t, n[3] = 0))\r\n        n[2]<0 && n[1]>0 && (n[2]+n[1]\/t>=0 ? (n[1] += n[2]*t, n[2] = 0) : (n[2] += n[1]\/t, n[1] = 0))\r\n\r\n        n[3]<0 && n[1]>0 && (n[3]+n[1]*t>=0 ? (n[1] += n[3]\/t, n[3] = 0) : (n[3] += n[1]*t, n[1] = 0))\r\n        n[3]<0 && n[2]>0 && (n[3]+n[2]\/t>=0 ? (n[2] += n[3]*t, n[3] = 0) : (n[3] += n[2]\/t, n[2] = 0))\r\n\r\n        console.log(\"\u514b\u5236\u4fee\u6b63\u540e\u4e09\u519b\u5175\u529b\u5dee\u53ca\u603b\u5175\u529b\u5dee:\", n, n[1] + n[2] + n[3])\r\n\r\n        return n[1] + n[2] + n[3]\r\n    },\r\n    \r\n    async _compare(marchId) {\r\n        \/\/\u83b7\u53d6\u653b\u51fb\u884c\u519b\u4fe1\u606f\r\n        var o = marchId && await send(RequestId.GET_MARCH_INFO, {marchId:marchId})\r\n        var march = o && o.marchInfo\r\n           \r\n        \/\/\u83b7\u53d6\u653b\u51fb\u51fa\u5f81\u58eb\u5175\u660e\u7ec6\r\n        o = march && await send(RequestId.MARCH_ARMY_DETAIL, {marchId:marchId})\r\n        var list = o && o.list\r\n            \r\n        \/\/\u83b7\u53d6\u653b\u51fb\u8005\u57fa\u5730\u4fe1\u606f(\u6218\u529b)\r\n        o = march && await send(RequestId.GET_WORLD_INFO, {x:march.begin.bx, y:march.begin.by, k:UserData.ServerId, marchInfo:!1})\r\n        var point = o && o.pointList.find(i=>i.x == march.begin.bx && i.y == march.begin.by)\r\n                 \r\n        \/\/\u53d1\u8d77\u653b\u51fb\u884c\u519b\u72b6\u6001\r\n        this.attacker={march:march, list:list, point:point}\r\n        return march && list && point && this._compareArmyPower()\r\n    },\r\n\r\n    async _protect() {\r\n        if (!this.busy) try {\r\n            this.busy = 1\r\n            if (this.setting.option.shield && await this._shieldProtect(this.setting.propitem)) return 1\r\n            if (this.setting.option.move_city && await this._moveProtect(this.setting.block)) return 2\r\n            if (this.setting.option.assembly && await this._assemblyProtect(this.setting.teams)) return 3\r\n            return 0\r\n        } finally {\r\n            this.busy = 0\r\n        }\r\n    },\r\n\r\n    _log(e) {\r\n        this.history.splice(0, this.history.length-29)\r\n        this.history.push(e)\r\n        this._update()    \r\n    },    \r\n\r\n    async onAttacking() {\r\n        for(var i in UserData._AttackArmyPool) {\r\n            var e = Object.assign({}, UserData._AttackArmyPool[i])\r\n            \r\n            \/\/\u53d1\u8d77\u653b\u51fb\u884c\u519b\u72b6\u6001\r\n            if (1 == e.attackState) {\r\n                var action = await this._compare(e.marchId) < 0 && await this._protect()\r\n                var m = this.attacker.march\r\n                m && this._log({time:ServerTime, uid:m.uid, name:m.name, type:1, x:m.begin.bx, y:m.begin.by, action:action, ext_data:this.attacker})\r\n            }\r\n        }\r\n    },\r\n\r\n    onApproaching(e) {\r\n        console.log(\"\u653b\u51fb\u8005\u62b5\u8fd1:\", e)\r\n        setTimeout(\r\n            (async(e)=>{\r\n                var action = await this._protect()\r\n                \/\/\u8bb0\u5f55\u65e5\u5fd7\r\n                var o = e && e.p && JSON.parse(e.p.playerInfo)\r\n                o && this._log({time:ServerTime, uid:e.p.pid, name:o.username, type:2, x:e.x, y:e.y, action:action, ext_data:{point:e}})\r\n            }).bind(this), \r\n            1500, e\r\n        )\r\n    },\r\n\r\n    onAssemblyUpdate(e) {\r\n        if (this.marchList.find(k=>k.marchId == e.marchId)) {\r\n            \/\/\u8e22\u4eba\r\n        }\r\n    },\r\n\r\n    onMyMarchUpdate(e) {\r\n        this.onAttacking()\r\n    },\r\n    \r\n    _init_mc() {\r\n        this.mc = new (__require(\"FWSMvc\").FMessageConnectionAbstract)\r\n        this.mc.updateTileInfo = async(e)=>{\r\n            var o = await send(RequestId.GET_PLAYER_POINT, {targetId: UserData.UID.toString()})\r\n            var t = o && o.point\r\n            if (e && e.p && t && t.p && e.p.aid != t.p.aid && e.p.power >= t.p.power &&\r\n                e.k == t.k && Math.pow(e.x-t.x, 2) + Math.pow(e.y-t.y, 2) <= 40) {\r\n                this.onApproaching(e)\r\n            }\r\n        }\r\n        this.mc.onFMessage_NEW_WORLD_MAP_CONTROLLER = e=>{var t = this.mc[e.data.name]; return t && (e.data.result = t.apply(this, e.data.args)), !0}\r\n    },\r\n\r\n    _onEvent() {\r\n        __require(\"EventCenter\").EVENT.on(__require(\"EventId\").EventId.AttackingMarchUpdate, this.onAttacking, this)   \/\/\u542f\u52a8\u76d1\u542c\u653b\u51fb\u4e8b\u4ef6\r\n        __require(\"EventCenter\").EVENT.on(__require(\"EventId\").EventId.AssemblysUpdate, this.onAssemblyUpdate, this)   \/\/\u76d1\u542c\u96c6\u7ed3\u4fee\u6539\u4e8b\u4ef6\r\n        __require(\"EventCenter\").EVENT.on(__require(\"EventId\").EventId.My_March_Update, this.onMyMarchUpdate, this)    \/\/\u76d1\u542c\u884c\u519b\u4fee\u6539\u4e8b\u4ef6\r\n    },\r\n\r\n    _offEvent() {\r\n        __require(\"EventCenter\").EVENT.off(__require(\"EventId\").EventId.AttackingMarchUpdate, this.onAttacking, this)   \/\/\u505c\u6b62\u76d1\u542c\u653b\u51fb\u4e8b\u4ef6\r\n        __require(\"EventCenter\").EVENT.off(__require(\"EventId\").EventId.AssemblysUpdate, this.onAssemblyUpdate, this)   \/\/\u76d1\u542c\u96c6\u7ed3\u4fee\u6539\u4e8b\u4ef6\r\n        __require(\"EventCenter\").EVENT.off(__require(\"EventId\").EventId.My_March_Update, this.onMyMarchUpdate, this)    \/\/\u76d1\u542c\u884c\u519b\u4fee\u6539\u4e8b\u4ef6\r\n    },\r\n\r\n    _start() {\r\n        this._onEvent(), this.mc.connect() \r\n    },\r\n\r\n    _stop() {\r\n        this._offEvent(), this.mc.disconnect()\r\n    },\r\n\r\n    _update() {\r\n        this._save()\r\n        this._render()\r\n    },\r\n\r\n    _save() {\r\n        var a = []\r\n        this.history.forEach(e => a.push({time:e.time, uid:e.uid, name:e.name, type:e.type, x:e.x, y:e.y, action:e.action}))\r\n        setItem(\"avoid-attacked\", JSON.stringify({setting:this.setting, state:this.state, history:a}))        \r\n    },\r\n \r\n    async _load() {\r\n        var o = await getItem(\"avoid-attacked\")\r\n        o && (o = JSON.parse(o)) && (this.setting = o.setting, this.state = o.state, this.history = o.history)\r\n    },\r\n \r\n    _render() {\r\n        function timestr(t) {var a=new Date(); return a.setTime(t*1000), (a.getMonth()+1)+'-'+a.getDate()+\" \"+a.getHours()+\":\"+a.getMinutes().toString().padStart(2,'0')+\":\"+a.getSeconds().toString().padStart(2,'0')}\r\n \r\n        var iframe = helper.dialog.iframe;\r\n        if (iframe && iframe.name == \"avoid-attacked\") {\r\n            for (var history=[], i=this.history.length-1; i>=0; --i) {\r\n                var e = this.history[i]\r\n                if (1 == e.type) {\r\n                    history.push(timestr(e.time) + '  ' + e.name + '(' + e.uid + ')\u4ece' + e.x + ',' + e.y + '\u653b\u51fb, ' + (e.action==0 ? '\u672a\u542f\u52a8\u4fdd\u62a4' : e.action==1 ? '\u62a4\u76fe\u4fdd\u62a4' : e.action==2 ? '\u8fc1\u57ce\u4fdd\u62a4' : '\u91c7\u96c6\u4fdd\u62a4'))  \r\n                } \r\n                if (2 == e.type) {\r\n                    history.push(timestr(e.time) + '  ' + e.name + '(' + e.uid + ')\u62b5\u8fd1(' + e.x + ',' + e.y + '), ' + (e.action==0 ? '\u672a\u542f\u52a8\u4fdd\u62a4' : e.action==1 ? '\u62a4\u76fe\u4fdd\u62a4' : e.action==2 ? '\u8fc1\u57ce\u4fdd\u62a4' : '\u91c7\u96c6\u4fdd\u62a4'))\r\n                }\r\n            }\r\n            iframe.contentWindow.render(this.setting, history, this.state)\r\n        }\r\n    },\r\n \r\n    start() {\r\n        !this.state.running && (this.state.running = !0, this._start(), this._update())\r\n    },\r\n\r\n    stop() {\r\n        this.state.running && (this.state.running = !1, this._stop(), this._update())\r\n    },\r\n\r\n    apply(setting) {\r\n        this.setting.option.shield = setting.option.shield\r\n        this.setting.option.move_city = setting.option.move_city\r\n        this.setting.option.assembly = setting.option.assembly\r\n        this.setting.propitem = setting.propitem\r\n        this.setting.block = setting.block\r\n        this.setting.teams = setting.teams\r\n        this._update()\r\n    },\r\n\r\n    async init() {\r\n        this._init_mc(), await this._load()\r\n        this.state.running && this._start()\r\n    },\r\n\r\n    free() {\r\n        this._stop()\r\n    },\r\n\r\n    open() {\r\n        helper.dialog.open({name:\"avoid-attacked\", width:600, height:350, html:this.html})\r\n        this._render() \r\n    }\r\n}\r\n\r\nhelper.pro.avoidAttacked.html = String.raw\r\n`<html charset=\"UTF-8\">\r\n<head>\r\n<style>\r\n    body{line-height:26px; vertical-align:top; font-size:14px; font-family:\"Helvetica\",\"Lucida Console\",\"Microsoft soft\";}\r\n    h3{display:block; margin-top:12px; margin-bottom:8px; text-align:center; width:100%}\r\n    label{margin-left:2px; margin-right:2px;}\r\n    label.caption{display:inline-block; width:80px;}\r\n    span{margin-left:20px; margin-right:0px;}\r\n    input{color:#333;border:1px solid #999; border-radius:3px; outline-style:none; margin-right:12px; padding-top:2px; height:20px;}\r\n    input[type=\"checkbox\"]{margin-right:1px; vertical-align:top; margin-top:6px; width:14px; height:14px;}\r\n    select{border:1px solid #999; border-radius:4px; outline-style:none; margin-left:0px; padding-top:1px; height:20px; }\r\n    button{border:1px solid #999; border-radius:3px; outline-style:none; text-align:center; margin-top:0px; width:60px; height:22px;}\r\n    button:hover{background-color:#ccc;} button:focus{background-color:#ccc;} button:active{transform: translateY(1px);}\r\n    input::-webkit-input-placeholder{color: #aaa;}\r\n    div.item{display:inline-block; margin-right:12px;}\r\n    div.panel{border:1px solid silver; border-radius:6px; margin:8px; padding-left:12px; padding-right:0px; box-shadow: 3px 3px 6px gray;}\r\n    #state{margin-left:10px; margin-top:8px; text-align:center; height:20px}\r\n    #action{margin-left:200px; margin-top:8px; text-align:center; width:80px;}\r\n    #setting{padding-top:8px; padding-bottom:8px;} #assembly-div{margin-right:0px;} #teams{width:100px;}\r\n    #history{height:200px; line-height:25px; padding-left:8px; overflow-x:auto; overflow-y:auto;} \r\n<\/style>\r\n<\/script>      \r\n<script>\r\n    function $(a) {\r\n        return a && '#'==a[0] && document.getElementById(a.substring(1))\r\n    }\r\n\r\n    function apply(e) {\r\n        var setting = {option:{}}\r\n        setting.option.shield = $(\"#shield\").checked\r\n        setting.option.move_city = $(\"#movecity\").checked\r\n        setting.option.assembly = $(\"#assembly\").checked\r\n        setting.propitem = Number($(\"#propitem\").value)\r\n        setting.block = Number($(\"#block\").value)\r\n        setting.teams = Number($(\"#teams\").value)\r\n        parent.helper.pro.avoidAttacked.apply(setting);\r\n    }\r\n\r\n    function render(setting, history, state) {\r\n        $(\"#shield\").checked = setting.option.shield\r\n        $(\"#movecity\").checked = setting.option.move_city \r\n        $(\"#assembly\").checked = setting.option.assembly\r\n        $(\"#propitem\").value = setting.propitem\r\n        $(\"#block\").value = setting.block\r\n        $(\"#teams\").value = setting.teams\r\n\r\n        $(\"#shield-div\").style.visibility = setting.option.shield ? \"visible\" : \"hidden\"\r\n        $(\"#movecity-div\").style.visibility = setting.option.move_city ? \"visible\" : \"hidden\"\r\n        $(\"#assembly-div\").style.visibility = setting.option.assembly ? \"visible\" : \"hidden\"\r\n\r\n        var html = \"\"\r\n        history.forEach(e=>html += \"\" == html ? e : \"<br>\"+e)\r\n        $(\"#history\").innerHTML = html\r\n\r\n        $(\"#state\").innerText = state.running ? \"\u8fd0\u884c\u4e2d\" : \"\u672a\u8fd0\u884c\"\r\n        $(\"#state\").style.backgroundColor = state.running ? \"greenyellow\" : \"#aaa\"\r\n        $(\"#state\").style.borderRadius = \"2px\"\r\n\r\n        $(\"#action\").innerText = state.running ? \"\u505c\u6b62\" : \"\u542f\u52a8\"\r\n    }\r\n\r\n    function action() {\r\n        var o = parent.helper.pro.avoidAttacked\r\n        o.state.running ? o.stop() : o.start()\r\n    }\r\n<\/script>\r\n<\/head>\r\n<body>\r\n    <h3>\u514d\u53d7\u653b\u51fb\u4fdd\u62a4<\/h3>\r\n    <div class=\"panel\" id=\"setting\">\r\n        <input type=\"checkbox\" id=\"shield\" onclick=\"apply()\"><label>\u62a4\u76fe<\/label>\r\n        <div class=\"item\" id=\"shield-div\">\r\n            <label>\u9053\u5177:<\/label>\r\n            <select id=\"propitem\" name=\"propitem\" onchange=\"apply()\">\r\n                <option value=0>\u81ea\u52a8<\/option>\r\n                <option value=200004>4\u5c0f\u65f6<\/option>\r\n                <option value=200005>8\u5c0f\u65f6<\/option>\r\n                <option value=200006>24\u5c0f\u65f6<\/option>\r\n            <\/select>\r\n        <\/div>\r\n        <input type=\"checkbox\" id=\"movecity\" onclick=\"apply()\"><label>\u8fc1\u57ce<\/label>\r\n        <div class=\"item\" id=\"movecity-div\">\r\n            <label>\u533a\u57df:<\/label>\r\n            <select id=\"block\" name=\"block\" onchange=\"apply()\">\r\n                <option value=0>\u5168\u5730\u56fe<\/option>\r\n                <option value=1>\u533a\u57df1<\/option>\r\n                <option value=2>\u533a\u57df2<\/option>\r\n                <option value=3>\u533a\u57df3<\/option>\r\n                <option value=4>\u533a\u57df4<\/option>\r\n                <option value=5>\u533a\u57df5<\/option>\r\n                <option value=6>\u533a\u57df6<\/option>\r\n                <option value=7>\u533a\u57df7<\/option>\r\n                <option value=8>\u533a\u57df8<\/option>\r\n                <option value=9>\u533a\u57df9<\/option>\r\n            <\/select>\r\n        <\/div>\r\n        <input type=\"checkbox\" id=\"assembly\" onclick=\"apply()\"><label>\u96c6\u7ed3<\/label>\r\n        <div class=\"item\" id=\"assembly-div\">\r\n            <label>\u961f\u5217:<\/label>\r\n            <input id=\"teams\" placeholder=\"\u5982123456\" onchange=\"apply()\">\r\n        <\/div>\r\n    <\/div>\r\n    <div class=\"panel\">\r\n        <div id=\"history\">\r\n        <\/div>\r\n    <\/div>\r\n    <span id=\"state\">\u672a\u8fd0\u884c<\/span>\r\n    <button id=\"action\" onclick=\"action()\">\u542f\u52a8<\/button>\r\n<\/body>\r\n<\/html>`\r\n\r\n\r\n\/\/-------------------------------------------------------------------------------------------------\r\n\/\/\u4e00\u952e\u5feb\u901f\u653b\u51fb\r\nhelper.pro.fastAttack && helper.pro.fastAttack.free()\r\nhelper.pro.fastAttack = {\r\n    setting:{premove:!0, fixmove:!1, block:0, preset:1, precheck:!0, energy:!0},\r\n    state:{running:!1},\r\n    \r\n    \/\/\u653b\u51fb\r\n    async _attack(t) {\r\n        if (await helper.battle.mutex.acquire(2000) ) {\r\n            try {\r\n                var context = helper.battle.backup()\r\n                t.AttackCityinfo(1)\r\n                return helper.battle.setup(this.setting.preset, 9999) && helper.battle.march()            \/\/\u8bbe\u7f6e\u82f1\u96c4\u548c\u58eb\u5175\u5e76\u51fa\u5f81\r\n             }\r\n            finally {\r\n                helper.battle.restore(context);\r\n                helper.battle.mutex.release();\r\n            }\r\n        }\r\n    },\r\n\r\n    \/\/\u66f4\u65b0\u5730\u56fe(\u57fa\u4e8eP\u5750\u6807)\r\n    async _updateMap(p) {\r\n        var a = __require(\"NWorldMapController\").default.instance, y = __require(\"NWorldMapMarchController\").default.instance\r\n        var g = __require(\"NWorldMapTerritoryModel\").default.instance, f = __require(\"NWorldMapData\").default.instance, d = __require(\"WorldMapMsgs\")    \r\n\r\n        \/\/\u66f4\u65b0\u5750\u6807\u4fe1\u606f\r\n        var k = UserData.ServerId, r = new Map, s \r\n        var o = await send(RequestId.GET_WORLD_INFO, {x: p.x, y: p.y, k: k, marchInfo: !0, viewLevel: 1})\r\n        o && o.pointList && o.pointList.forEach(e=>s = a.updateTileInfo(e, 1), s && r.set(s, !0)) \r\n        d.send(d.Names.WorldMapUpdateViewPort, r)\r\n\r\n        \/\/\u66f4\u65b0\u884c\u519b\u4fe1\u606f\r\n        o && o.marchList && (y.model.dealMarchDataFromNowWorldMarchData(o.marchList, !0), y.model.addMonsterDefenderMarchData())\r\n        d.send(d.Names.WorldMapMarchsInit, null)\r\n\r\n        \/\/\u66f4\u65b0\u8054\u76df\u9886\u5730\r\n        var t = await send(RequestId.GET_TERRITORY_INFO, {x: p.x, y: p.y, k: k, width: 14, height: 20})\r\n        t && t.infos && (g.clearAlianceTerritory(), g.updateAllianceTerritory(t.infos, !1, k))\r\n\r\n        return o\r\n    },\r\n\r\n    \/\/\u533a\u57df\u57fa\u51c6\u5750\u6807\r\n    _randomBase(i) {\r\n        if (i>=0 && i<=9) {\r\n            \/\/ i=0\u8868\u793a\u5168\u5730\u56fe,\u968f\u673a\u9009\u62e9\u4e00\u5757\u533a\u57df\r\n            i = i > 0 ? i-1 : Math.min(Math.floor(Math.random()*9), 8)\r\n\r\n            \/\/\u4e5d\u5757\u533a\u57df\u57fa\u51c6\u5750\u6807\r\n            var x = (i % 3) * 272 + 136\r\n            var y = Math.floor(i \/ 3) * 317 + 158\r\n\r\n            \/\/\u57fa\u51c6\u5076\u6570\u5750\u6807\r\n            y % 2 == 1 && y++\r\n            return {x:x, y:y}\r\n        }\r\n    },\r\n\r\n    \/\/\u533a\u57df\u968f\u673a\u5750\u6807\r\n    _randomDest(p) {\r\n        \/\/\u968f\u673a\u540c\u5076\u5750\u6807\uff0c\u5750\u6807\u8303\u56f4x=base.x-36~base.x+36, y=base.y-36~base.y+36\r\n        var x = Math.floor(p.x - 36 + Math.random()*72), y = Math.floor(p.y - 36 + Math.random()*72)\r\n        x % 2 == 0 && y % 2 == 1 && y++\r\n        x % 2 == 1 && y % 2 == 0 && y++\r\n        return {x:x, y:y}        \r\n    },\r\n\r\n    \/\/\u68c0\u67e5\u53ef\u5426\u8fc1\u57ce\r\n    _canMove(o, e) {\r\n        \/\/\u68c0\u67e5\u5750\u6807\u662f\u7a7a\u5730\u4e14\u4e0d\u5c5e\u4e8e\u5176\u4ed6\u76df\u9886\u5730\r\n        var u = __require(\"NWorldMapUtils\").NWorldMapUtils\r\n        var t = __require(\"NWorldMapTerritoryController\").default.instance.getAllianceIdByPoint(e.x, e.y)\r\n        return u.checkTileArea(e.x, e.y, UserData.ServerId, 0) && u.checkCanMove(e.x, e.y) && (t <= 0 || t == UserData.Alliance.Aid) && !o.pointList.find(i=>i.x == e.x && i.y == e.y) \r\n    },\r\n\r\n    \/\/\u83b7\u53d6\u64a4\u9000\u5750\u6807\r\n    async _getRetreatPos() {\r\n        var b = this._randomBase(this.setting.block), o = await this._updateMap(b), e = this._randomDest(b), n = 0\r\n        \/\/\u6700\u591a\u5c1d\u8bd5100\u6b21\r\n        while (o && e && ++n <= 100) { \r\n            if (this._canMove(o, e) && this._canMove(o, {x:e.x, y:e.y-2}) && this._canMove(o, {x:e.x-1, y:e.y-1}) && this._canMove(o, {x:e.x+1, y:e.y-1})) return e\r\n            e = this._randomDest(b) \r\n        }\r\n    },\r\n \r\n    \/\/\u83b7\u53d6\u653b\u51fb\u5750\u6807\r\n    _getAttackPos(p) {\r\n        var u = __require(\"NWorldMapUtils\").NWorldMapUtils\r\n\r\n        \/\/\u83b7\u53d6\u8fc1\u57ce\u5750\u6807\r\n        var x, y\r\n        for (var dy = 0; dy < 3; dy++) {\r\n            y = p.y + dy\r\n            for (var dx = 0; dx < 3; dx++) {\r\n                x = p.x + dx;\r\n                (x + y) % 2 == 1 && y++\r\n                if (u.checkCanMove(x, y)) return({x:x, y:y})\r\n\r\n                x = p.x - dx;\r\n                (x + y) % 2 == 1 && y++\r\n                if (u.checkCanMove(x, y)) return({x:x, y:y})\r\n            }\r\n\r\n            y = p.y - dy\r\n            for (var dx = 0; dx < 3; dx++) {\r\n                x = p.x + dx;\r\n                (x + y) % 2 == 1 && y++\r\n                if (u.checkCanMove(x, y)) return({x:x, y:y})\r\n\r\n                x = p.x - dx;\r\n                (x + y) % 2 == 1 && y++\r\n                if (u.checkCanMove(x, y)) return({x:x, y:y})\r\n            }\r\n        }\r\n    },\r\n\r\n    \/\/\u6267\u884c\u8fc1\u57ce\r\n    async _moveCity(p, b) {\r\n        if (0 == UserData.myMarchNum) {\r\n            \/\/\u4f7f\u7528\u8fc1\u57ce\u9053\u5177\r\n            var e = UserData.getItemAmount(200003) > 0 && {itemId:200003, amount:1, isPurchase:0, x:p.x, y:p.y, citySkill:0}\r\n\r\n            \/\/\u4f7f\u7528\u96f7\u4e91\u6280\u80fd\r\n            if (b) {\r\n                var GameTools = __require(\"GameTools\").default\r\n                var n = parseInt(GameTools.getDataConfigData(20214233)) \/\/1781000\r\n                var o = n && GameTools.getCitySkillConfigDataBySkinId(n, 0)\r\n                var r = n && UserData.getCitySkillDataById(n)\r\n                r && o.times_perday > r.Count && (e = {itemId:0, amount:0, isPurchase:0, x:p.x, y:p.y, citySkill:1})\r\n            }\r\n                \r\n            \/\/\u8fc1\u57ce\r\n            var o = e && await send(RequestId.MOVE_CITY_POSITION, e)\r\n            o  &&  __require(\"WorldMapMsgs\").send(__require(\"WorldMapMsgs\").Names.WorldMapUpdateViewPort, null)\r\n            return o\r\n        }\r\n    },\r\n\r\n    \/\/\u8865\u5145\u4f53\u529b\r\n    _charge() {\r\n        if (this.setting.energy) for(var e of UserData.getItemList()) {\r\n            if (6 === e.Data.type && e.Amount > 0) return send(RequestId.ITEM_USE, {amount:1, itemid:e.ItemId})\r\n        }\r\n        return 0\r\n    },\r\n    \r\n    \/\/\u4f53\u529b\u68c0\u67e5  \r\n    async _energy() {\r\n        \/\/\u8ba1\u7b97\u4efb\u52a1\u4f53\u529b\r\n        var t = UserData.getAttackCostEnergy(!1)\r\n        var s = UserData.getEnergy(1).Point\r\n        return (t <= s ? 1 : await this._charge() ? 2 : 0)\r\n    },\r\n    \r\n    \/\/\u68c0\u67e5\u7f16\u961f\r\n    _precheck() {\r\n        \/\/\u5355\u5175\u68c0\u67e5(\u542b\u673a\u7532)\r\n        if (0 == this.setting.preset || 9 == this.setting.preset) {\r\n            var one = __require(\"GameTools\").default.getAttackerMyArmys().sort((t, e)=>{return t.ArmyData.power - e.ArmyData.power})[0];\r\n            if (!one || (one.battleMechaData && !helper.battle.mechaOk(one.battleMechaData.mechaId)))\r\n                return 0\r\n        }\r\n        \/\/\u9884\u8bbe\u7f16\u961f\u68c0\u67e5\r\n        if (0 < this.setting.preset && this.setting.preset < 9 && this.setting.precheck) { \r\n            var march = UserData.PresetMarchData.getPreMarchByIndex(this.setting.preset-1)\r\n            if (!march) return 0  \r\n    \r\n            \/\/\u68c0\u67e5\u82f1\u96c4\r\n            var heros = __require(\"HeroController\").HeroController.getInstance().getHaveHeroCanMarchList()\r\n            for (var i = 0; i < march.HeroIds.length; ++i) if (!heros.find((e)=>{return e._id == march.HeroIds[i]})) return 0\r\n    \r\n            \/\/\u68c0\u67e5\u58eb\u5175\r\n            var armys = __require(\"GameTools\").default.getAttackerMyArmys()\r\n            for (var group = {}, i = 0; i < armys.length; ++i) {var n=armys[i].ArmyData.id; group[n] = (group[n] ? group[n] : 0) + 1}\r\n            for (var e of march.Armys) {\r\n                if (e && e.ArmyId && e.isMecha && !helper.battle.mechaOk(e.mechaId)) return 0\r\n                if (e && e.ArmyId && !e.isMecha && (!group[e.ArmyId] || (group[e.ArmyId] -= e.Num)<0)) return 0\r\n            }\r\n        }\r\n        return 1\r\n    },\r\n\r\n    \/\/\u5feb\u901f\u653b\u51fb\u5165\u53e3\r\n    async process(t) {\r\n        function distance(a,b) {return Math.sqrt(Math.pow(a.x-b.x, 2)+Math.pow(a.y-b.y, 2))}\r\n\r\n        if (!this.state.running) return  \/\/\u672a\u542f\u7528\u6b64\u529f\u80fd\r\n\r\n        \/\/\u68c0\u67e5\u662f\u5426\u53ef\u653b\u51fb\r\n        if (t && t.BtnLayout.getChildByName(\"BtnAttack\").active && t.cityInfo.shieldTime < ServerTime &&\r\n            UserData.myMarchNum < UserData.myMarchNumMAX && this._precheck() && await this._energy()) {\r\n            \/\/\u8fc1\u57ce\r\n            var p = t.cityInfo\r\n            if (this.setting.premove && distance(p, UserData.WorldCoord) > 5) {\r\n                p = this._getAttackPos(p)\r\n                p = p && await this._moveCity(p, !0)\r\n            }\r\n             \r\n            \/\/\u653b\u51fb\r\n            var o = p && await this._attack(t) \r\n            o && (this.march = o.marchInfo, this.track = t.cityInfo.pid)\r\n        }\r\n    },\r\n\r\n    \/\/\u884c\u519b\u8fd4\u56de\r\n    async _onback(marchId) {\r\n        if (this.march && this.march.marchId == marchId) {\r\n            \/\/\u64a4\u79bb\r\n            if (this.setting.fixmove && 0 == UserData.myMarchNum) {\r\n                var p = await this._getRetreatPos()\r\n                p && await this._moveCity(p, !1)\r\n            }\r\n            this.march = null, this.track = null\r\n        }\r\n    },\r\n\r\n    onMarchUpdate(e) {\r\n        var o = JSON.parse(e);\r\n        4 == o.marchInfo.state && this._onback(o.marchInfo.marchId);\r\n    },\r\n\r\n    async onUpdateTileInfo(e) {\r\n        if (e.p && e.p.pid == this.track) {\r\n            e.x == this.march.target.tx && e.y == this.march.target.ty || await send(RequestId.RECALL_MARCH, {marchId: this.march.marchId})\r\n            __require(\"WorldMapTools\").default.goToWorldMapByPos({x: e.x, y: e.y, s: e.k, subMap: 0})\r\n        }\r\n    },\r\n\r\n    _start() {\r\n        \/\/\u6355\u6349\u884c\u519b\u4fe1\u606f\r\n        __require(\"EventCenter\").EVENT.on(__require(\"EventId\").EventId.My_March_Update, this.onMarchUpdate, this)\r\n        this.mc.connect() \r\n    },\r\n\r\n    _stop() {\r\n        \/\/\u5173\u95ed\u884c\u519b\u4fe1\u606f\r\n        __require(\"EventCenter\").EVENT.off(__require(\"EventId\").EventId.My_March_Update, this.onMarchUpdate, this)\r\n        this.mc.disconnect() \r\n    },\r\n\r\n    _update() {\r\n        this._save()\r\n        this._render()\r\n    },\r\n\r\n    _save() {\r\n        setItem(\"fast-attack\", JSON.stringify({setting:this.setting, state:this.state}))\r\n    },\r\n\r\n    async _load() {\r\n        var o = await getItem(\"fast-attack\")\r\n        o && (o = JSON.parse(o)) && (this.setting = o.setting, this.state = o.state)\r\n    },\r\n\r\n    _render() {\r\n        var iframe = helper.dialog.iframe;\r\n        if (iframe && iframe.name == \"fast-attack\") {\r\n            iframe.contentWindow.render(this.setting, this.state)\r\n        }\r\n    },\r\n\r\n    start() {\r\n        !this.state.running && (this.state.running = !0, this._start(), this._update())\r\n    },\r\n     \r\n    stop() {\r\n        this.state.running && (this.state.running = !1, this._stop(), this._update())\r\n    },\r\n     \r\n    apply(setting) {\r\n        this.setting = setting\r\n        this._update()\r\n    },    \r\n\r\n    _init_mc() {\r\n        this.mc = new (__require(\"FWSMvc\").FMessageConnectionAbstract)\r\n        this.mc.onFMessage_NEW_WORLD_MAP_CONTROLLER = e=>{var t = this.mc[e.data.name]; return t && (e.data.result = t.apply(this, e.data.args)), !0}\r\n        this.mc.updateTileInfo = this.onUpdateTileInfo.bind(this)\r\n    },\r\n\r\n    _init_fn() {    \r\n        var a = __require(\"NWorldCityPopup\"), h = this\r\n        a.default.prototype._onShow || (a.default.prototype._onShow = a.default.prototype.onShow)    \r\n        a.default.prototype.onBtn_Track = function() {\r\n            h.track != this.cityInfo.pid ? h.track = this.cityInfo.pid : h.track = null\r\n            helper.closeUI(\"NWorldCityPopup\")\r\n        }\r\n        a.default.prototype.onBtn_FastAttack = function() {\r\n            h.process(this)\r\n        }\r\n        a.default.prototype.onShow = function(t) {\r\n            this._onShow(t)\r\n            if (this.BtnLayout.getChildByName(\"BtnAttack\").active && h.state.running) {\r\n                var clone = cc.instantiate(this.BtnLayout.getChildByName(\"BtnVisit\"))\r\n                this.BtnLayout.addChild(clone)\r\n                clone.active = !0\r\n                clone._name = \"BtnTrack\", \r\n                clone.getComponentInChildren(cc.Label)._string = this.cityInfo.pid != h.track ? \"\u8ddf\u8e2a\" : \"\u505c\u6b62\u8ddf\u8e2a\"\r\n                clone.getComponent(cc.Button).clickEvents[0].handler = 'onBtn_Track'\r\n    \r\n                clone = cc.instantiate(this.BtnLayout.getChildByName(\"BtnAttack\"))\r\n                this.BtnLayout.addChild(clone)\r\n                clone._name = \"BtnFastAttack\"\r\n                clone.getComponentInChildren(cc.Label)._string = \"\u5feb\u901f\u653b\u51fb\"\r\n                clone.getComponent(cc.Button).clickEvents[0].handler = \"onBtn_FastAttack\"\r\n            }\r\n        }\r\n    },\r\n\r\n    async init() {\r\n        await this._load()\r\n        this._init_mc(), this._init_fn()\r\n        this.state.running && this._start()\r\n    },\r\n\r\n    free() {\r\n        this._stop()\r\n    },\r\n\r\n    open() {\r\n        helper.dialog.open({name:\"fast-attack\", width:700, height:175, html:this.html})\r\n        this._render() \r\n    }\r\n}\r\n\r\nhelper.pro.fastAttack.html = String.raw\r\n`<html charset=\"UTF-8\">\r\n<head>\r\n<style>\r\n    body{line-height:30px; vertical-align:top; font-size:14px; font-family:\"Helvetica\",\"Lucida Console\",\"Microsoft soft\";}\r\n    h3{display:block; margin-top:12px; margin-bottom:8px; text-align:center; width:100%}\r\n    label{margin-left:2px; margin-right:2px;}\r\n    span{margin-left:10px; margin-right:0px;}\r\n    input{color:#333;border:1px solid #999; border-radius:3px; outline-style:none; margin-right:12px; padding-top:2px; height:20px;}\r\n    input[type=\"checkbox\"]{margin-right:1px; vertical-align:top; margin-top:8px; width:14px; height:14px;}\r\n    select{color:#333; border:1px solid #999; border-radius:4px; outline-style:none; margin-left:0px; padding-top:1px; height:20px; }\r\n    button{border:1px solid #999; border-radius:3px; outline-style:none; text-align:center; margin-top:0px; width:60px; height:22px;}\r\n    button:hover{background-color:#ccc;} button:focus{background-color:#ccc;} button:active{transform: translateY(1px);}\r\n    input::-webkit-input-placeholder{color: #aaa;}\r\n    #state{margin-left:10px; margin-top:8px; text-align:center; height:20px}\r\n    #action{margin-left:240px; margin-top:8px; text-align:center; width:80px;}\r\n    div.panel{border:1px solid silver; border-radius:6px; margin:8px; padding:4px; padding-top:8px; padding-left:12px; box-shadow: 3px 3px 6px gray;}\r\n    .combo-box{display:inline-block; position:relative;} .combo-list{width:70px;} .combo-edit{position:absolute; padding-top:1px; width:50px; height:18px; left:1px; top:1px; border:0px;}\r\n<\/style>\r\n<\/script>      \r\n<script>\r\n    function $(a) {\r\n        return a && '#'==a[0] && document.getElementById(a.substring(1))\r\n    }\r\n\r\n    function apply() {\r\n        var setting = {}\r\n        setting.premove = $(\"#premove\").checked\r\n        setting.fixmove = $(\"#fixmove\").checked\r\n        setting.block = Number($(\"#block\").value)\r\n        setting.preset = Number($(\"#preset\").value)\r\n        setting.precheck = $(\"#precheck\").checked\r\n        setting.energy = $(\"#energy\").checked\r\n        parent.helper.pro.fastAttack.apply(setting)\r\n    }\r\n\r\n    function render(setting, state) {\r\n        $(\"#premove\").checked = setting.premove\r\n        $(\"#fixmove\").checked = setting.fixmove\r\n        $(\"#block\").value = setting.block\r\n        $(\"#preset\").value = setting.preset\r\n        $(\"#precheck\").checked = setting.precheck\r\n        $(\"#energy\").checked = setting.energy\r\n\r\n        $(\"#state\").innerText = state.running ? \"\u8fd0\u884c\u4e2d\" : \"\u672a\u8fd0\u884c\"\r\n        $(\"#state\").style.backgroundColor = state.running ? \"greenyellow\" : \"#aaa\"\r\n        $(\"#state\").style.borderRadius = \"2px\"\r\n\r\n        $(\"#action\").innerText = state.running ? \"\u505c\u6b62\" : \"\u542f\u52a8\"\r\n    }\r\n\r\n    function action() {\r\n        var o = parent.helper.pro.fastAttack\r\n        o.state.running ? o.stop() : o.start()\r\n    }\r\n<\/script>\r\n<\/head>\r\n<body>\r\n    <h3>\u4e00\u952e\u5feb\u901f\u653b\u51fb<\/h3>\r\n    <div class=\"panel\">\r\n        <input type=\"checkbox\" id=\"premove\" onclick=\"apply()\"><label>\u653b\u51fb\u524d\u8fc1\u57ce<\/label>\r\n        <span><\/span>\r\n        <input type=\"checkbox\" id=\"fixmove\" onclick=\"apply()\"><label>\u653b\u51fb\u540e\u8fc1\u57ce<\/label>\r\n        <span><\/span>\r\n        <label>\u533a\u57df:<\/label>\r\n        <select id=\"block\" name=\"block\" onchange=\"apply()\">\r\n            <option value=0>\u5168\u5730\u56fe<\/option>\r\n            <option value=1>\u533a\u57df1<\/option>\r\n            <option value=2>\u533a\u57df2<\/option>\r\n            <option value=3>\u533a\u57df3<\/option>\r\n            <option value=4>\u533a\u57df4<\/option>\r\n            <option value=5>\u533a\u57df5<\/option>\r\n            <option value=6>\u533a\u57df6<\/option>\r\n            <option value=7>\u533a\u57df7<\/option>\r\n            <option value=8>\u533a\u57df8<\/option>\r\n            <option value=9>\u533a\u57df9<\/option>\r\n        <\/select>\r\n        <span><\/span>\r\n        <label>\u7f16\u961f:<\/label>\r\n        <select class=\"combo-list\" id=\"preset\" onchange=\"apply()\">\r\n            <option value=\"1\">\u7f16\u961f1<\/option>\r\n            <option value=\"2\">\u7f16\u961f2<\/option>\r\n            <option value=\"3\">\u7f16\u961f3<\/option>\r\n            <option value=\"4\">\u7f16\u961f4<\/option>\r\n            <option value=\"5\">\u7f16\u961f5<\/option>\r\n            <option value=\"6\">\u7f16\u961f6<\/option>\r\n            <option value=\"7\">\u7f16\u961f7<\/option>\r\n            <option value=\"8\">\u7f16\u961f8<\/option>\r\n        <\/select>\r\n        <span><\/span>\r\n        <input type=\"checkbox\" id=\"precheck\" onclick=\"apply()\"><label>\u68c0\u67e5\u884c\u519b<\/label>\r\n        <span><\/span>\r\n        <input type=\"checkbox\" id=\"energy\" onclick=\"apply()\"><label>\u8865\u5145\u4f53\u529b<\/label>\r\n        <br>\r\n        <label style=\"color:purple;\">\u6fc0\u6d3b\u6b64\u529f\u80fd\u540e\uff0c\u5728\u70b9\u51fb\u5bf9\u65b9\u57ce\u5e02\u5f39\u51fa\u7a97\u53e3\u754c\u9762\u70b9\u51fb\"\u5feb\u901f\u653b\u51fb\"\u6309\u94ae\u53ef\u81ea\u52a8\u53d1\u8d77\u653b\u51fb<\/label>\r\n    <\/div>\r\n    <span id=\"state\">\u672a\u8fd0\u884c<\/span>\r\n    <button id=\"action\" onclick=\"action()\">\u542f\u52a8<\/button>\r\n<\/body>\r\n<\/html>`\r\n\r\n\/\/-------------------------------------------------------------------------------------------------\r\n\/\/\u5b9d\u85cf\u5546\u5e97\u9053\u5177\r\nhelper.pro.treasureShop && helper.pro.treasureShop.free()\r\nhelper.pro.treasureShop = {\r\n    setting: { \r\n        items:[\r\n            {id: 10171, selected: !1},   \/\/\u804c\u4e1a\u9053\u5177\u81ea\u9009\u5b9d\u7bb1(200)\r\n            {id: 10172, selected: !1},   \/\/\u804c\u4e1a\u9053\u5177\u81ea\u9009\u5b9d\u7bb1(100)\r\n            {id: 10173, selected: !1},   \/\/\u6a59\u8272\u4e07\u80fd\u788e\u7247(300)\r\n            {id: 10174, selected: !1},   \/\/\u6a59\u8272\u4e07\u80fd\u788e\u7247(150) \r\n            {id: 10175, selected: !1},   \/\/\u7d2b\u8272\u4e07\u80fd\u788e\u7247(60)\r\n            {id: 10176, selected: !1},   \/\/\u7d2b\u8272\u4e07\u80fd\u788e\u7247(30) \r\n            {id: 10177, selected: !1},   \/\/\u9646\u519b\u82f1\u96c4\u4e13\u5c5e\u6280\u80fd\u5b9d\u7bb1(140)\r\n            {id: 10178, selected: !1},   \/\/\u6d77\u519b\u82f1\u96c4\u4e13\u5c5e\u6280\u80fd\u5b9d\u7bb1(140)\r\n            {id: 10179, selected: !1},   \/\/\u7a7a\u519b\u82f1\u96c4\u4e13\u5c5e\u6280\u80fd\u5b9d\u7bb1(140)\r\n            {id: 10180, selected: !1},   \/\/\u9646\u519b\u82f1\u96c4\u4e13\u5c5e\u6280\u80fd\u5b9d\u7bb1(70) \r\n            {id: 10181, selected: !1},   \/\/\u6d77\u519b\u82f1\u96c4\u4e13\u5c5e\u6280\u80fd\u5b9d\u7bb1(70) \r\n            {id: 10182, selected: !1},   \/\/\u7a7a\u519b\u82f1\u96c4\u4e13\u5c5e\u6280\u80fd\u5b9d\u7bb1(70) \r\n            {id: 10183, selected: !1},   \/\/\u6a59\u8272\u7ecf\u9a8c\u4e66(90) \r\n            {id: 10184, selected: !1},   \/\/\u6a59\u8272\u7ecf\u9a8c\u4e66(45) \r\n            {id: 10185, selected: !1},   \/\/\u7d2b\u8272\u7ecf\u9a8c\u4e66(30) \r\n            {id: 10186, selected: !1},   \/\/\u7d2b\u8272\u7ecf\u9a8c\u4e66(15) \r\n            {id: 10187, selected: !1},   \/\/\u8bad\u7ec3\u52a0\u901f1\u5c0f\u65f6(15) \r\n            {id: 10188, selected: !1},   \/\/\u804c\u4e1a\u5929\u8d4b\u52a0\u901f8\u5c0f\u65f6(120)\r\n            {id: 10189, selected: !1},   \/\/\u91d1\u5e01\u7830\u7830\u5b9d\u7bb1(60)\r\n            {id: 10190, selected: !1},   \/\/\u79d1\u6280\u9053\u5177\u81ea\u9009\u7bb1(20)\r\n            {id: 10191, selected: !1},   \/\/\u77f3\u6cb950K(50)\r\n            {id: 10192, selected: !1},   \/\/\u7cae\u98df50K(50)\r\n            {id: 10193, selected: !1},   \/\/\u9ad8\u7ea7\u62db\u52df\u5238(75)\r\n            {id: 10194, selected: !1},   \/\/\u7cbe\u82f1\u62bd\u5361\u5238(20)\r\n            {id: 10195, selected: !1},   \/\/\u62a4\u76fe24\u5c0f\u65f6(100) \r\n            {id: 10196, selected: !1},   \/\/\u8fc1\u57ce(75)\r\n            {id: 10197, selected: !1},   \/\/\u4e2d\u7ea7\u88c5\u9970\u7bb1(25)\r\n            {id: 10198, selected: !1},   \/\/\u9ad8\u7ea7\u88c5\u9970\u7bb1(250) \r\n            {id: 10199, selected: !1},   \/\/\u6cf0\u6e29\u788e\u7247(200)\r\n            {id: 10200, selected: !1},   \/\/\u8428\u59c6\u788e\u7247(200)\r\n            {id: 10201, selected: !1},   \/\/\u5e0c\u5ea6\u788e\u7247(200)\r\n            {id: 10202, selected: !1},   \/\/\u6885\u8389\u8fbe\u788e\u7247(200) \r\n            {id: 10203, selected: !1},   \/\/\u514b\u6d1b\u4f0a\u788e\u7247(200) \r\n            {id: 10204, selected: !1},   \/\/\u5a1c\u8482\u5a05\u788e\u7247(200) \r\n            {id: 10205, selected: !1},   \/\/\u7231\u5fb7\u534e\u788e\u7247(200) \r\n            {id: 10206, selected: !1},   \/\/\u9f50\u624e\u9601\u592b\u4eba\u788e\u7247(200)\r\n            {id: 10207, selected: !1},   \/\/\u674e\u7ea2\u7389\u788e\u7247(200) \r\n            {id: 10208, selected: !1},   \/\/\u5929\u7267\u788e\u7247(200)\r\n            {id: 10209, selected: !1},   \/\/\u6cf0\u857e\u838e\u788e\u7247(200) \r\n            {id: 10210, selected: !1},   \/\/\u7d22\u7ef4\u5409\u788e\u7247(200) \r\n            {id: 10211, selected: !1},   \/\/\u6cf0\u6e29\u788e\u7247(100)\r\n            {id: 10212, selected: !1},   \/\/\u8428\u59c6\u788e\u7247(100)\r\n            {id: 10213, selected: !1},   \/\/\u5e0c\u5ea6\u788e\u7247(100)\r\n            {id: 10214, selected: !1},   \/\/\u6885\u8389\u8fbe\u788e\u7247(100) \r\n            {id: 10215, selected: !1},   \/\/\u514b\u6d1b\u4f0a\u788e\u7247(100) \r\n            {id: 10216, selected: !1},   \/\/\u5a1c\u8482\u5a05\u788e\u7247(100) \r\n            {id: 10217, selected: !1},   \/\/\u7231\u5fb7\u534e\u788e\u7247(100) \r\n            {id: 10218, selected: !1},   \/\/\u9f50\u624e\u9601\u592b\u4eba\u788e\u7247(100) \r\n            {id: 10219, selected: !1},   \/\/\u674e\u7ea2\u7389\u788e\u7247(100) \r\n            {id: 10220, selected: !1},   \/\/\u5929\u7267\u788e\u7247(100)\r\n            {id: 10221, selected: !1},   \/\/\u6cf0\u857e\u838e\u788e\u7247(100) \r\n            {id: 10222, selected: !1},   \/\/\u7d22\u7ef4\u5409\u788e\u7247(100) \r\n            {id: 10223, selected: !1},   \/\/\u674e\u827a\u5a9b\u788e\u7247(200) \r\n            {id: 10224, selected: !1},   \/\/\u5f17\u91cc\u5fb7\u66fc\u00b7\u8d6b\u5179\u788e\u7247(200)\r\n            {id: 10225, selected: !1},   \/\/\u674e\u827a\u5a9b\u788e\u7247(100)\r\n            {id: 10226, selected: !1}    \/\/\u5f17\u91cc\u5fb7\u66fc\u00b7\u8d6b\u5179\u788e\u7247(100)\r\n        ]\r\n    },\r\n    state: {\r\n        counter: [], \r\n        lastid: \"0\",\r\n        running: !1\r\n    },\r\n    history: [],\r\n\r\n    _price(id) {\r\n        var o = __require(\"TableManager\").TABLE.getTableDataById(__require(\"TableName\").TableName.TREASURE_SHOP, id.toString())\r\n        return o && o.price_shop\r\n    },\r\n\r\n    _iname(id) {\r\n        var a = __require(\"TableManager\").TABLE.getTableDataById(__require(\"TableName\").TableName.TREASURE_SHOP, id.toString())\r\n        , l = a && __require(\"TableManager\").TABLE.getTableDataById(__require(\"TableName\").TableName.ITEM, a.item_id.toString())\r\n        return l && __require(\"LocalManager\").LOCAL.getText(l.name.toString())\r\n    },\r\n\r\n    _discount(id) {\r\n        var o = __require(\"TableManager\").TABLE.getTableDataById(__require(\"TableName\").TableName.TREASURE_SHOP, id.toString())\r\n        return o && o.cut_off\r\n    },\r\n\r\n    _log(id) {\r\n        this.history.splice(0, this.history.length-29)\r\n        this.history.push({time: ServerTime, id: id})\r\n        this._update()    \r\n    },\r\n\r\n    async _execute() {\r\n        \/\/\u83b7\u53d6\u6700\u65b0\u5b9d\u85cf\u5546\u5e97\r\n        var o = await send(RequestId.GET_TREASURE_MAP_DATA_BY_TYPE, {type:3, prePageLastId:this.state.lastid})\r\n        if (o && o.lastOtherDataId && o.otherDataList) {\r\n            this.state.lastid = o.lastOtherDataId\r\n            for (var shop of o.otherDataList) {\r\n                \/\/\u83b7\u53d6\u5b9d\u85cf\u9053\u5177\r\n                var a = await send(RequestId.GET_TREASURE_MAP_WORLD_SHOP, {id:shop.id})\r\n                a && a.data && (a = JSON.parse(a.data)) \r\n                for(var e of a.items) {\r\n                    \/\/\u7b2c\u4e00\u6b21\u51fa\u73b0\u5219\u63d2\u5165\u8bbe\u7f6e\u8868\uff08\u9ed8\u8ba4\u672a\u9009\u4e2d\uff09\r\n                    var s = this.setting.items.find(i=>i.id == e.shopId)\r\n                    s || this.setting.items.push(s = {id:e.shopId, selected:!1})\r\n\r\n                    \/\/\u83b7\u53d6\u9053\u5177\u4ef7\u683c \r\n                    if (s.selected && e.num>0 && UserData.Resource.Gold >= this._price(e.shopId)) {\r\n                        \/\/\u8d2d\u4e70\u5b9d\u85cf\u9053\u5177\r\n                        var o = await send(RequestId.BUY_IN_TREASURE_MAP_WORLD_SHOP, {shopId:e.shopId, amount:1, id:shop.id, num:1})\r\n                        o && o.reward && (\r\n                            s = this.state.counter.find(i=>i.id == e.shopId),\r\n                            s || this.state.counter.push(s = {id:e.shopId, count:0}),  \/\/\u63d2\u5165\r\n                            s.count++, this._log(e.shopId)\r\n                        )\r\n                    }\r\n                }\r\n            }\r\n            this._update()\r\n        }\r\n    },\r\n\r\n    _onTimer() {\r\n        this._execute()\r\n    },\r\n\r\n    _start() {\r\n        var interval = 837981059306 === UserData.UID ? 10000 : 30000\r\n        this.timer || (this.timer = setInterval(this._onTimer.bind(this), interval))\r\n    },\r\n    \r\n    _stop() {\r\n        this.timer && (clearInterval(this.timer), this.timer = 0)\r\n    },\r\n        \r\n    _update() {\r\n        this._save()\r\n        this._render()\r\n    },\r\n\r\n    _save() {\r\n        setItem(\"treasure-shop\", JSON.stringify({setting:this.setting, state:this.state, history:this.history}))\r\n    },\r\n\r\n    async _load() {\r\n        var o = await getItem(\"treasure-shop\")\r\n        o && (o = JSON.parse(o)) && (this.setting = o.setting, this.state.running = o.state.running, this.history = o.history)\r\n    },\r\n\r\n    _render() {\r\n        function timestr(t) {var a=new Date(t*1000); return (a.getMonth()+1)+'-'+a.getDate()+\" \"+a.getHours()+\":\"+a.getMinutes().toString().padStart(2,'0')+\":\"+a.getSeconds().toString().padStart(2,'0')}\r\n        function logstr(e) {return timestr(e.time) + '  \u6d88\u8d39' + this._price(e.id) + '\u94bb\u77f3\uff0c\u8d2d\u5165' + this._iname(e.id)}\r\n   \r\n        var iframe = helper.dialog.iframe;\r\n        if (iframe && iframe.name == \"treasure-shop\") {\r\n            var items = [], history = []\r\n            this.setting.items.forEach(e=>items.push({id:e.id, selected:e.selected, name:this._iname(e.id), price:this._price(e.id), discount:this._discount(e.id)}))\r\n            items.sort((a,b)=>{return this._price(a.id) == this._price(b.id) ? a.id-b.id : this._price(a.id) - this._price(b.id)})\r\n            for (var i=this.history.length-1; i>=0; --i) history.push(logstr.call(this, this.history[i]))\r\n            iframe.contentWindow.render(items, history, this.state)\r\n        }\r\n    },\r\n\r\n    start() {\r\n        !this.state.running && (this.state.running = !0, this.state.lastid=\"0\", this._start(), this._update())\r\n    },\r\n     \r\n     stop() {\r\n        this.state.running && (this.state.running = !1, this._stop(), this._update())\r\n    },\r\n     \r\n    apply(items) {\r\n        for (var a of items) this.setting.items.find(e=>e.id == a.id && (e.selected = a.selected, !0))\r\n        this._save()\r\n    },\r\n     \r\n    async init() {\r\n        await this._load()\r\n        this.state.running && this._start()\r\n    },\r\n\r\n    free() {\r\n        this._stop()\r\n    },\r\n\r\n    dayInit() {\r\n        this.state.counter = [], this._update()\r\n    },\r\n\r\n    open() {\r\n        helper.dialog.open({name:\"treasure-shop\", width:570, height:440, html:this.html})\r\n        this._render()\r\n    }\r\n}\r\n\r\nhelper.pro.treasureShop.html = String.raw\r\n`<html charset=\"UTF-8\">\r\n<head>\r\n<style>\r\n    body{line-height:30px; vertical-align:top; font-size:14px; font-family:\"Helvetica\",\"Lucida Console\",\"Microsoft soft\";}\r\n    h3{display:block; margin-top:12px; margin-bottom:8px; text-align:center; width:100%}\r\n    input[type=\"checkbox\"]{margin-right:1px; vertical-align:top; margin-top:8px; width:14px; height:14px;}\r\n    button{border:1px solid #999; border-radius:3px; outline-style:none; text-align:center; margin-top:0px; width:60px; height:22px;}\r\n    button:hover{background-color:#ccc;} button:focus{background-color:#ccc;} button:active{transform: translateY(1px);}\r\n    #counter{display:inline-block; color:green; margin-left:123px; width:130px;}\r\n    #state{margin-left:10px; margin-top:8px; text-align:center; height:20px}\r\n    #action{margin-left:174px; margin-top:8px; text-align:center; width:80px;}\r\n    div.panel{border:1px solid silver; border-radius:6px; margin:8px; padding:4px; padding-left:8px; padding-right:0px; box-shadow:3px 3px 6px gray;}\r\n    #items{height:210px; overflow-x:hide; overflow-y:auto;}\r\n    #history{height:100px; line-height:25px; padding-left:4px; overflow-x:hide; overflow-y:auto;} \r\n    div.item{display:inline-block; height:28px; margin:0px; }\r\n    span[name=\"name\"]{display:inline-block; margin-left:2px; width:156px} span[name=\"price\"]{display:inline-block; margin-left:2px; width:120px} span[name=\"discount\"]{display:inline-block; margin-left:2px; width:110px} span[name=\"count\"]{color:purple;}\r\n<\/style>\r\n<\/script>      \r\n<script>\r\n    function $(a) {\r\n        return a && '#'==a[0] && document.getElementById(a.substring(1))\r\n    }\r\n\r\n    function apply() {\r\n        var items = [];\r\n        for(var div of $(\"#items\").children) {\r\n            items.push({id:Number(div.id), selected:div.children[\"selected\"].checked})\r\n        }\r\n        parent.helper.pro.treasureShop.apply(items)\r\n    }\r\n\r\n    function _html(item) {\r\n        return '<div class=\"item\" id=\"' + item.id + '\"><input name=\"selected\" type=\"checkbox\" onclick=\"apply()\"><span name=\"name\"><\/span><span name=\"price\"><\/span><span name=\"discount\"><\/span><span name=\"count\"><\/span><\/div>'\r\n    }\r\n\r\n    function render(items, history, state) {\r\n        for (var html=\"\", i=0; i<items.length; ++i) html = html.concat(_html(items[i]))\r\n        $(\"#items\").innerHTML = html\r\n\r\n        for (var item of items) {\r\n            var e = $('#'+item.id)\r\n            e.children[\"selected\"].checked = item.selected\r\n            e.children[\"name\"].innerText = item.name\r\n            e.children[\"price\"].innerText = '\u4ef7\u683c\uff1a' + item.price + '\u94bb\u77f3'\r\n            e.children[\"discount\"].innerText = '\u6298\u6263\uff1a' + item.discount + '%'\r\n            for(var c of state.counter) c.id==item.id && c.count>0 && (e.children[\"count\"].innerText='\u5df2\u8d2d\u4e70'+c.count+'\u6b21')  \r\n        }\r\n\r\n        html = \"\"\r\n        history.forEach(e=>html += \"\" == html ? e : \"<br>\"+e)\r\n        $(\"#history\").innerHTML = html\r\n\r\n        $(\"#state\").innerText = state.running ? \"\u8fd0\u884c\u4e2d\" : \"\u672a\u8fd0\u884c\"\r\n        $(\"#state\").style.backgroundColor = state.running ? \"greenyellow\" : \"#aaa\"\r\n        $(\"#state\").style.borderRadius = \"2px\"\r\n\r\n        $(\"#action\").innerText = state.running ? \"\u505c\u6b62\" : \"\u542f\u52a8\";\r\n    }\r\n\r\n    function action() {\r\n        var o = parent.helper.pro.treasureShop\r\n        o.state.running ? o.stop() : o.start()\r\n    }\r\n<\/script>\r\n<\/head>\r\n<body>\r\n    <h3>\u81ea\u52a8\u8d2d\u4e70\u5b9d\u85cf\u5546\u5e97\u9053\u5177<\/h3>\r\n    <div class=\"panel\">\r\n        <div id=\"items\">\r\n            <div class=\"item\" id=\"11001\">\r\n            <\/div>\r\n        <\/div>\r\n    <\/div>\r\n    <div class=\"panel\">\r\n        <div id=\"history\">\r\n        <\/div>\r\n    <\/div>\r\n    <span id=\"state\">\u672a\u8fd0\u884c<\/span>\r\n    <button id=\"action\" onclick=\"action()\">\u542f\u52a8<\/button>\r\n<\/body>\r\n<\/html>`\r\n\r\n\r\n\/\/-------------------------------------------------------------------------------------------------\r\n\/\/\u7a7a\u6295\u8865\u7ed9\u6d3b\u52a8\r\nhelper.pro.airdropActivity && helper.pro.airdropActivity.free()\r\nhelper.pro.airdropActivity = {\r\n    setting: [\r\n        {active:!1, preset:0, prechk:0, count:99999, seconds:99999},\r\n        {active:!0, preset:1, prechk:1, count:1, seconds:10}\r\n    ],\r\n    state:{counter:[0, 0], running:!1},\r\n\r\n    _march(ti, preset) {\r\n        var context = helper.battle.backup()\r\n        try {\r\n            Object.assign(new(__require(\"AirDropPanel\").default), {_tileInfo: ti}).onFightClick()\r\n            return helper.battle.setup(preset, 9999) && helper.battle.march()  \/\/\u8bbe\u7f6e\u82f1\u96c4\u548c\u58eb\u5175\u5e76\u51fa\u5f81\r\n        }\r\n        finally {\r\n            helper.battle.restore(context)\r\n        }\r\n    },\r\n\r\n    async _airDrop(point, preset) {\r\n        var ti = __require(\"NWorldMapController\").default.instance.getTileInfoByCoord(point.x, point.y, UserData.ServerId, 0)\r\n        if (await helper.battle.mutex.acquire(2000)) {\r\n            try {\r\n                return await this._march(ti, preset)        \/\/\u51fa\u5f81\r\n            }\r\n            finally {\r\n                helper.battle.mutex.release()\r\n            }\r\n        }\r\n    },\r\n\r\n    async _speedup(o, seconds) {\r\n        while (o && o.marchInfo && 1 == o.marchInfo.state && o.marchInfo.marchArrive - ServerTime > seconds) {\r\n            \/\/520001-\u884c\u519b\u52a0\u901f 520002-\u9ad8\u7ea7\u884c\u519b\u52a0\u901f(\u4f18\u5148\u4f7f\u7528)\r\n            var m = o.marchInfo.marchId, i = UserData.getItemAmount(520002) ? 520002 : UserData.getItemAmount(520001) ? 520001 : 0\r\n            o = m && i && await send(RequestId.MARCH_SPEED_UP, {marchId: m, itemId: i}) && await send(RequestId.GET_MARCH_INFO, {marchId: m}) \r\n        }    \r\n    },\r\n    \r\n    async _updateMap(b) {\r\n        var a = __require(\"NWorldMapController\").default.instance, y = __require(\"NWorldMapMarchController\").default.instance\r\n        var g = __require(\"NWorldMapTerritoryModel\").default.instance, f = __require(\"NWorldMapData\").default.instance, d = __require(\"WorldMapMsgs\")    \r\n\r\n        \/\/\u66f4\u65b0\u5750\u6807\u4fe1\u606f\r\n        var k = UserData.ServerId, r = new Map, s \r\n        var o = await send(RequestId.GET_WORLD_INFO, {x: b.x, y: b.y, k: k, rid: 0, width: 14, height: 20, marchInfo: !0, viewLevel: 1})\r\n        o && o.pointList && o.pointList.forEach(e=>s = a.updateTileInfo(e, 1), s && r.set(s, !0)) \r\n        d.send(d.Names.WorldMapUpdateViewPort, r)\r\n\r\n        \/\/\u66f4\u65b0\u884c\u519b\u4fe1\u606f\r\n        o && o.marchList && (y.model.dealMarchDataFromNowWorldMarchData(o.marchList, !0), y.model.addMonsterDefenderMarchData())\r\n        d.send(d.Names.WorldMapMarchsInit, null)\r\n\r\n        \/\/\u66f4\u65b0\u8054\u76df\u9886\u5730\r\n        var t = await send(RequestId.GET_TERRITORY_INFO, {x: b.x, y: b.y, k: k, width: 14, height: 20})\r\n        t && t.infos && (g.clearAlianceTerritory(), g.updateAllianceTerritory(t.infos, !1, k))\r\n\r\n        return o\r\n    },\r\n\r\n    \/\/\u7f16\u961f\u68c0\u67e5\r\n    _precheck(preset, precheck) {\r\n        \/\/\u5355\u5175\u68c0\u67e5(\u542b\u673a\u7532)\r\n        if (0 == preset || 9 == preset) {\r\n            var one = __require(\"GameTools\").default.getAttackerMyArmys().sort((t, e)=>{return t.ArmyData.power - e.ArmyData.power})[0];\r\n            if (!one || (one.battleMechaData && !helper.battle.mechaOk(one.battleMechaData.mechaId)))\r\n                return 0\r\n        }\r\n        \/\/\u9884\u8bbe\u7f16\u961f\u68c0\u67e5\r\n        if (0 < preset && preset < 9 && precheck) { \r\n            var heros = __require(\"HeroController\").HeroController.getInstance().getHaveHeroCanMarchList()\r\n              , armys = __require(\"GameTools\").default.getAttackerMyArmys()\r\n              , march = UserData.PresetMarchData.getPreMarchByIndex(preset-1)\r\n            if (!march) return 0\r\n\r\n            \/\/\u68c0\u67e5\u82f1\u96c4\r\n            for (var i = 0; i < march.HeroIds.length; ++i) if (!heros.find((e)=>{return e._id == march.HeroIds[i]})) return !1\r\n    \r\n            \/\/\u68c0\u67e5\u58eb\u5175\r\n            for (var group = {}, i = 0; i < armys.length; ++i) {var n=armys[i].ArmyData.id; group[n] = (group[n] ? group[n] : 0) + 1}\r\n            for (var e of march.Armys) {\r\n                if (e && e.ArmyId && e.isMecha && !helper.battle.mechaOk(e.mechaId)) return !1\r\n                if (e && e.ArmyId && !e.isMecha && (!group[e.ArmyId] || (group[e.ArmyId] -= e.Num)<0)) return !1\r\n            }\r\n        }\r\n        return 1\r\n    },\r\n\r\n    \/\/\u68c0\u67e5\u76ee\u6807\u7a7a\u6295\r\n    _checkTraget(p) {\r\n        \/\/\u5b58\u5728\u884c\u519b?\r\n        return !Object.values(__require(\"NWorldMapData\").default.instance.marches).find(e=>e.target_tx == p.x && e.target_ty == p.y)\r\n    },\r\n\r\n    async _process(e, t) {\r\n        UserData.UID != 837981059306 && await new Promise(resolve=>{setTimeout(resolve, Math.floor(500 + Math.random()*1500))})\r\n        var n = this.state.counter[t], s = this.setting[t] \r\n        if (s && n < s.count && UserData.myMarchNumMAX > UserData.myMarchNum && this._precheck(s.preset, s.prechk)) {\r\n            \/\/\u83b7\u53d6\u5750\u6807\u5e76\u66f4\u65b0\u5c40\u90e8\u5730\u56fe\r\n            var p = __require(\"GameTools\").default.getWorldPosByServerPointId(e.pt)\r\n            var o = await this._updateMap(p) && this._checkTraget(p) && await this._airDrop(p, s.preset)\r\n            o && o.marchInfo && (this.state.counter[t]++, await this._speedup(o, s.seconds), this._update())\r\n        }\r\n    },\r\n    \r\n    \/\/e:{op:1, pt:32412, info:{id:24600, item:14, point:32412, state:3}} \r\n    \/\/pt\u53cainfo.point\u4e3a\u5750\u6807\uff0cop:1-\u65b0\u589e\uff0c2\u4fee\u6539\u72b6\u6001\r\n    \/\/info.id\uff1a\u7b2c\u4e00\u4f4d\"2\"\u8868\u793a\u7b2c\u4e8c\u8f6e\uff0c2,3\u4f4d\"46\"\u8868\u793a\u7b2c47\u4e2a\u8865\u7ed9\uff0c \r\n    \/\/info.item=14\u8868\u793a\u662f\u7b2c14\u53f7\u7bb1\u5b50(1-50\u4e3a\u666e\u901a\u8865\u7ed9\uff0c51-55\u4e3a\u91d1\u8272\u8865\u7ed9)\r\n    \/\/info.state=0\u4e3a\u521d\u59cb\u72b6\u6001\uff0c1\u4e3a\u88ab\u62c9\u8d70\uff0c3\u4f30\u8ba1\u662f\u5230\u8fbe\u9057\u8ff9\uff0c\u6ca1\u89c1\u52302\uff08\u731c\u6d4b2\u662f\u88ab\u62a2\uff09\r\n    \/\/__require(\"TableManager\").TABLE.getTableDataById(\"deploy\", e.info.item.toString())\uff0c\u8fd4\u56de\u5bf9\u8c61\u7684plot_quality=1\u8868\u793a\u666e\u901a\u8865\u7ed9\uff0c3\u8868\u793a\u91d1\u8272\u8865\u7ed9\r\n    onWorldAirDropUpdate(e) {\r\n        var i = e.info.item, t = this.setting[0].active && (i > 0 && i <= 50) ? 0 : this.setting[1].active && i > 50 ? 1 : -1\r\n        e.op == 1 && e.info.state == 0 && (1===t || !this.setting[1].active || this.setting[1].count <= this.state.counter[1]) && this._process(e, t)\r\n    },\r\n\r\n    _start() {\r\n        \/\/\u6355\u6349\u7a7a\u6295\u4e8b\u4ef6\r\n        __require(\"EventCenter\").EVENT.on(__require(\"EventId\").EventId.WorldAirDropUpdate, this.onWorldAirDropUpdate, this)\r\n    },\r\n\r\n    _stop() {\r\n        \/\/\u5173\u95ed\u7a7a\u6295\u4e8b\u4ef6\r\n        __require(\"EventCenter\").EVENT.off(__require(\"EventId\").EventId.WorldAirDropUpdate, this.onWorldAirDropUpdate, this)\r\n    },\r\n\r\n    _update() {\r\n        this._save()\r\n        this._render()\r\n    },\r\n \r\n    _save() {\r\n        setItem(\"airdrop-activity\", JSON.stringify({setting:this.setting, state:this.state}))        \r\n    },\r\n \r\n    async _load() {\r\n        var o = await getItem(\"airdrop-activity\")\r\n        o && (o = JSON.parse(o)) && (this.setting = o.setting, this.state = o.state)\r\n    },\r\n \r\n     _render() {\r\n        var iframe = helper.dialog.iframe\r\n        iframe && \"airdrop-activity\" == iframe.name && iframe.contentWindow.render(this.setting, this.state)\r\n    },\r\n \r\n    start() {\r\n        !this.state.running && (this.state.running = !0, this._start(), this.state.counter = [0, 0], this._update())\r\n    },\r\n     \r\n    stop() {\r\n        this.state.running && (this.state.running = !1, this._stop(), this._update())\r\n    },\r\n\r\n    apply(setting) {\r\n        this.setting = setting\r\n        this._update()\r\n    },\r\n    \r\n    async init() {\r\n        await this._load()\r\n        this.state.running && this._start()\r\n    },\r\n\r\n    free() {\r\n        this._stop()\r\n    },\r\n\r\n    dayInit() {\r\n        this.state.counter = [0, 0], this._update()\r\n    },\r\n\r\n    open() {\r\n        helper.dialog.open({name:\"airdrop-activity\", width:610, height:258, html:this.html})\r\n        this._render() \r\n    }\r\n}\r\n\r\nhelper.pro.airdropActivity.html = String.raw\r\n`<html charset=\"UTF-8\">\r\n<head>\r\n<style>\r\n    body{line-height:30px; vertical-align:top; font-size:14px; font-family:\"Helvetica\",\"Lucida Console\",\"Microsoft soft\";}\r\n    h3{display:block; margin-top:12px; margin-bottom:8px; text-align:center; width:100%}\r\n    label{margin-left:2px; margin-right:2px;}\r\n    label.counter{margin-left:4px; width:100%;}\r\n    span{margin-left:20px; margin-right:0px;}\r\n    input{color:#333;border:1px solid #999; border-radius:3px; outline-style:none; margin-right:12px; padding-top:2px; height:20px;}\r\n    input[type=\"checkbox\"]{margin-right:1px; vertical-align:top; margin-top:8px; width:14px; height:14px;}\r\n    select{color:#333; border:1px solid #999; border-radius:4px; outline-style:none; margin-left:0px; padding-top:1px; height:20px; }\r\n    button{border:1px solid #999; border-radius:3px; outline-style:none; text-align:center; margin-top:0px; width:60px; height:22px;}\r\n    button:hover{background-color:#ccc;} button:focus{background-color:#ccc;} button:active{transform: translateY(1px);}\r\n    input::-webkit-input-placeholder{color: #aaa;}\r\n    #counter{display:inline-block; color:green; margin-left:123px; width:130px;}\r\n    #state{margin-left:10px; margin-top:8px; text-align:center; height:20px}\r\n    #action{margin-left:200px; margin-top:8px; text-align:center; width:80px;}\r\n    div.panel{border:1px solid silver; border-radius:6px; margin:8px; padding:4px; padding-top:8px; padding-left:12px; box-shadow: 3px 3px 6px gray;}\r\n    .combo-box{display:inline-block; position:relative;} .combo-list{width:70px;} .combo-edit{position:absolute; padding-top:1px; width:50px; height:18px; left:1px; top:1px; border:0px;}\r\n<\/style>\r\n<\/script>      \r\n<script>\r\n    function $(a) {\r\n        return a && '#'==a[0] && document.getElementById(a.substring(1))\r\n    }\r\n\r\n    function editchange(edit) {\r\n        edit.setAttribute(\"value\", Number(edit.value.replace('\u6b21','').replace('\u79d2','').replace('\u5185',''))); \r\n        apply();   \r\n    }\r\n\r\n    function listchange(list) {\r\n        var edit = list.parentNode.children[\"edit\"];\r\n        var i = list.selectedIndex;\r\n        edit.value = list.options[i].innerText;\r\n        edit.setAttribute(\"value\", list.options[i].value);\r\n        list.selectedIndex = 0;\r\n        apply();\r\n    }\r\n\r\n    function apply() {\r\n        var setting = [{},{}]\r\n\r\n        setting[0].active = $(\"#normal\").children[\"active\"].checked\r\n        setting[0].preset = Number($(\"#normal\").children[\"preset\"].value)\r\n        setting[0].count = Number($(\"#normal\").children[\"count\"].children[\"edit\"].getAttribute(\"value\"))\r\n        setting[0].seconds = Number($(\"#normal\").children[\"seconds\"].children[\"edit\"].getAttribute(\"value\"))\r\n        setting[0].precheck = $(\"#normal\").children[\"precheck\"].checked; \r\n\r\n        setting[1].active = $(\"#orange\").children[\"active\"].checked\r\n        setting[1].preset = Number($(\"#orange\").children[\"preset\"].value)\r\n        setting[1].count = Number($(\"#orange\").children[\"count\"].children[\"edit\"].getAttribute(\"value\"))\r\n        setting[1].seconds = Number($(\"#orange\").children[\"seconds\"].children[\"edit\"].getAttribute(\"value\"))\r\n        setting[1].precheck = $(\"#orange\").children[\"precheck\"].checked; \r\n\r\n        parent.helper.pro.airdropActivity.apply(setting)\r\n    }\r\n\r\n    function render(setting, state) {\r\n        $(\"#normal\").children[\"active\"].checked = setting[0].active\r\n        $(\"#normal\").children[\"preset\"].value = setting[0].preset\r\n        $(\"#normal\").children[\"count\"].children[\"edit\"].value = (99999 == setting[0].count) ? '\u65e0\u9650\u6b21' : setting[0].count + '\u6b21'\r\n        $(\"#normal\").children[\"count\"].children[\"edit\"].setAttribute(\"value\",setting[0].count)\r\n        $(\"#normal\").children[\"seconds\"].children[\"edit\"].value = (99999 == setting[0].seconds) ? '\u4e0d\u52a0\u901f' :setting[0].seconds + '\u79d2\u5185'\r\n        $(\"#normal\").children[\"seconds\"].children[\"edit\"].setAttribute(\"value\", setting[0].seconds)\r\n        $(\"#normal\").children[\"precheck\"].checked = setting[0].precheck\r\n        $(\"#normal\").children[\"counter\"].innerText = state.counter[0] ? '\u5df2\u8fd0\u8f93\u7a7a\u6295' + state.counter[0] +'\u6b21' : '\u3000'\r\n        $(\"#normal\").children[\"counter\"].style.color = state.counter[0] >= setting[0].count ? \"green\" : state.running ? \"purple\" : \"black\"\r\n\r\n        $(\"#orange\").children[\"active\"].checked = setting[1].active\r\n        $(\"#orange\").children[\"preset\"].value = setting[1].preset\r\n        $(\"#orange\").children[\"count\"].children[\"edit\"].value = (99999 == setting[1].count) ? '\u65e0\u9650\u6b21' : setting[1].count + '\u6b21'\r\n        $(\"#orange\").children[\"count\"].children[\"edit\"].setAttribute(\"value\",setting[1].count)\r\n        $(\"#orange\").children[\"seconds\"].children[\"edit\"].value = (99999 == setting[1].seconds) ? '\u4e0d\u52a0\u901f' :setting[1].seconds + '\u79d2\u5185'\r\n        $(\"#orange\").children[\"seconds\"].children[\"edit\"].setAttribute(\"value\", setting[1].seconds)\r\n        $(\"#orange\").children[\"precheck\"].checked = setting[1].precheck\r\n        $(\"#orange\").children[\"counter\"].innerText = state.counter[1] ? '\u5df2\u8fd0\u8f93\u7a7a\u6295' + state.counter[1] +'\u6b21' : '\u3000'\r\n        $(\"#orange\").children[\"counter\"].style.color = state.counter[1] >= setting[1].count ? \"green\" : state.running ? \"purple\" : \"black\"\r\n\r\n        $(\"#state\").innerText = state.running ? \"\u8fd0\u884c\u4e2d\" : \"\u672a\u8fd0\u884c\"\r\n        $(\"#state\").style.backgroundColor = state.running ? \"greenyellow\" : \"#aaa\"\r\n        $(\"#state\").style.borderRadius = \"2px\"\r\n\r\n        $(\"#action\").innerText = state.running ? \"\u505c\u6b62\" : \"\u542f\u52a8\"\r\n    }\r\n\r\n    function action() {\r\n        var o = parent.helper.pro.airdropActivity\r\n        o.state.running ? o.stop() : o.start()\r\n    }\r\n<\/script>\r\n<\/head>\r\n<body>\r\n    <h3>\u7a7a\u6295\u8865\u7ed9\u6d3b\u52a8<\/h3>\r\n    <div class=\"panel\" id=\"orange\">\r\n        <input type=\"checkbox\" name=\"active\" onclick=\"apply()\"><label class=\"label-text\">\u91d1\u8272\u7a7a\u6295<\/label>\r\n        <label>\u3000\u7f16\u961f:<\/label>\r\n        <select class=\"combo-list\" name=\"preset\" onchange=\"apply()\">\r\n            <option value=\"0\">\u5355\u5175<\/option>\r\n            <option value=\"1\">\u7f16\u961f1<\/option>\r\n            <option value=\"2\">\u7f16\u961f2<\/option>\r\n            <option value=\"3\">\u7f16\u961f3<\/option>\r\n            <option value=\"4\">\u7f16\u961f4<\/option>\r\n            <option value=\"5\">\u7f16\u961f5<\/option>\r\n            <option value=\"6\">\u7f16\u961f6<\/option>\r\n            <option value=\"7\">\u7f16\u961f7<\/option>\r\n            <option value=\"8\">\u7f16\u961f8<\/option>\r\n            <option value=\"9\">\u81ea\u52a8<\/option>\r\n        <\/select>\r\n        <input type=\"checkbox\" name=\"precheck\" onclick=\"apply()\"><label>\u68c0\u67e5\u884c\u519b<\/label>\r\n        <label>\u3000\u6b21\u6570:<\/label>\r\n        <div class=\"combo-box\" name=\"count\">\r\n            <select class=\"combo-list\" name=\"list\" onchange=\"listchange(this)\">\r\n                <option style=\"display:none\"><\/option>\r\n                <option value=\"1\">1\u6b21<\/option>\r\n                <option value=\"5\">5\u6b21<\/option>\r\n                <option value=\"10\">10\u6b21<\/option>\r\n                <option value=\"99999\">\u65e0\u9650\u6b21<\/option>\r\n            <\/select>\r\n            <input class=\"combo-edit\" name=\"edit\" onchange=\"editchange(this)\">\r\n        <\/div>\r\n        <label>\u3000\u52a0\u901f:<\/label>\r\n        <div class=\"combo-box\" name=\"seconds\">\r\n            <select class=\"combo-list\" name=\"list\" onchange=\"listchange(this)\">\r\n                <option style=\"display:none\"><\/option>\r\n                <option value=\"5\">5\u79d2\u5185<\/option>\r\n                <option value=\"10\">10\u79d2\u5185<\/option>\r\n                <option value=\"99999\">\u4e0d\u52a0\u901f<\/option>\r\n            <\/select>\r\n            <input class=\"combo-edit\" name=\"edit\" onchange=\"editchange(this)\">\r\n        <\/div>\r\n        <br>\r\n        <label class=\"counter\" name=\"counter\">\u3000<\/label>\r\n    <\/div>\r\n    <div class=\"panel\" id=\"normal\">\r\n        <input type=\"checkbox\" name=\"active\" onclick=\"apply()\"><label class=\"label-text\">\u666e\u901a\u7a7a\u6295<\/label>\r\n        <label>\u3000\u7f16\u961f:<\/label>\r\n        <select class=\"combo-list\" name=\"preset\" onchange=\"apply()\">\r\n            <option value=\"0\">\u5355\u5175<\/option>\r\n            <option value=\"1\">\u7f16\u961f1<\/option>\r\n            <option value=\"2\">\u7f16\u961f2<\/option>\r\n            <option value=\"3\">\u7f16\u961f3<\/option>\r\n            <option value=\"4\">\u7f16\u961f4<\/option>\r\n            <option value=\"5\">\u7f16\u961f5<\/option>\r\n            <option value=\"6\">\u7f16\u961f6<\/option>\r\n            <option value=\"7\">\u7f16\u961f7<\/option>\r\n            <option value=\"8\">\u7f16\u961f8<\/option>\r\n            <option value=\"9\">\u81ea\u52a8<\/option>\r\n        <\/select>\r\n        <input type=\"checkbox\" name=\"precheck\" onclick=\"apply()\"><label>\u68c0\u67e5\u884c\u519b<\/label>\r\n        <label>\u3000\u6b21\u6570:<\/label>\r\n        <div class=\"combo-box\" name=\"count\">\r\n            <select class=\"combo-list\" name=\"list\" onchange=\"listchange(this)\">\r\n                <option style=\"display:none\"><\/option>\r\n                <option value=\"1\">1\u6b21<\/option>\r\n                <option value=\"5\">5\u6b21<\/option>\r\n                <option value=\"10\">10\u6b21<\/option>\r\n                <option value=\"99999\">\u65e0\u9650\u6b21<\/option>\r\n            <\/select>\r\n            <input class=\"combo-edit\" name=\"edit\" onchange=\"editchange(this)\">\r\n        <\/div>\r\n        <label>\u3000\u52a0\u901f:<\/label>\r\n        <div class=\"combo-box\" name=\"seconds\">\r\n            <select class=\"combo-list\" name=\"list\" onchange=\"listchange(this)\">\r\n                <option style=\"display:none\"><\/option>\r\n                <option value=\"5\">5\u79d2\u5185<\/option>\r\n                <option value=\"10\">10\u79d2\u5185<\/option>\r\n                <option value=\"99999\">\u4e0d\u52a0\u901f<\/option>\r\n            <\/select>\r\n            <input class=\"combo-edit\" name=\"edit\" onchange=\"editchange(this)\">\r\n        <\/div>\r\n        <br>\r\n        <label class=\"counter\" name=\"counter\">\u3000<\/label>\r\n    <\/div>\r\n    <span id=\"state\">\u672a\u8fd0\u884c<\/span>\r\n    <button id=\"action\" onclick=\"action()\">\u542f\u52a8<\/button>\r\n<\/body>\r\n<\/html>`\r\n\r\n\r\n\/\/-------------------------------------------------------------------------------------------------\r\n\/\/\u6df1\u6d77\u5bfb\u5b9d\u6d3b\u52a8\r\nhelper.pro.deepseaTreasure && helper.pro.deepseaTreasure.free()\r\nhelper.pro.deepseaTreasure = {\r\n    state: {\r\n        running: !1\r\n    },\r\n    history: [],\r\n    \r\n    get aid() {\r\n        var a = __require(\"ActivityController\").ActivityController.Instance.getActivityList()\r\n        var e = a.find(e=>'ActivityDeepSeaTreasure' == e.showUiType)\r\n        return e && e.id \r\n    },\r\n\r\n    get slots() {\r\n        var a = __require(\"ActivityController\").ActivityController.Instance._activityMap[this.aid] \r\n        return a && a.extra &&a.extra.slots\r\n    },\r\n\r\n    get active() {\r\n        var a = __require(\"ActivityController\").ActivityController.Instance._activityMap[this.aid] \r\n        return a && a.endtime > ServerTime\r\n    },\r\n\r\n    _iname(id) {\r\n        var t = __require(\"TableManager\"), n = __require(\"TableName\"), l = __require(\"LocalManager\")\r\n        var o = t.TABLE.getTableDataById(n.TableName.ITEM, id.toString())\r\n        return o && l.LOCAL.getText(o.name)\r\n    },\r\n    \r\n    async _reward() {\r\n        for(var i=0; i<this.slots.length; i++) {\r\n            var e = Object.assign({}, this.slots[i])\r\n            e.s && e.st>0 && e.et<ServerTime && await send(RequestId.AWARD_EXPLORE_SEA, {aid: this.aid, index: i}) && this._log(e)\r\n        }\r\n    },\r\n\r\n    async _explore() {\r\n        if (this.active) for(var i=0; i<this.slots.length; i++) {\r\n            var e = this.slots[i]\r\n            !e.s && !e.st && !e.et && await send(RequestId.START_EXPLORE_SEA, {aid: this.aid, index: i}) && setTimeout((i)=>this.slots && this._log(this.slots[i]), 500, i)\r\n        }\r\n    },\r\n\r\n    _log(a) {\r\n        this.history.splice(0, this.history.length-29)\r\n        this.history.push({time: ServerTime, item: a})\r\n        this._update()\r\n    },\r\n\r\n    async _execute() {\r\n        this.slots && (await this._reward(), await this._explore()) \r\n    },\r\n\r\n    _onTimer() {\r\n        this._execute()\r\n    },\r\n\r\n    _start() {\r\n        this.timer || (this.timer = setInterval(this._onTimer.bind(this), 1000))\r\n    },\r\n\r\n    _stop() {\r\n        this.timer && (clearInterval(this.timer), this.timer = 0)\r\n    },\r\n\r\n    _update() {\r\n        this._save()\r\n        this._render()\r\n    },\r\n\r\n    _save() {\r\n        setItem(\"deepsea-treasure\", JSON.stringify({state:this.state, history:this.history}))\r\n    },\r\n\r\n    async _load() {\r\n        var o = await getItem(\"deepsea-treasure\")\r\n        o && (o = JSON.parse(o)) && (this.state = o.state, this.history = o.history)\r\n    },\r\n\r\n    _render() {\r\n        function timestr(t) {var a=new Date(); return a.setTime(t*1000), (a.getMonth()+1)+'-'+a.getDate()+\" \"+a.getHours()+\":\"+a.getMinutes().toString().padStart(2,'0')+\":\"+a.getSeconds().toString().padStart(2,'0')}\r\n        function logstr(e) {return timestr(e.time) + ' ' + (e.time > e.item.et ? '\u9886\u53d6' : '\u63a2\u5230') + this._iname(e.item.i)}\r\n\r\n        var iframe = helper.dialog.iframe;\r\n        if (iframe && iframe.name == \"deepsea-treasure\") {\r\n            for (var history=[], i=this.history.length-1; i>=0; --i) history.push(logstr.call(this, this.history[i]))\r\n            iframe.contentWindow.render(this.slots, history, this.state)\r\n        }\r\n    },\r\n\r\n    start() {\r\n        !this.state.running && (this.state.running = !0, this._start(), this._update())\r\n    },\r\n     \r\n    stop() {\r\n        this.state.running && (this.state.running = !1, this._stop(), this._update())\r\n    },\r\n     \r\n    async init() {\r\n        await this._load()\r\n        this.state.running && this._start()\r\n    },\r\n\r\n    free() {\r\n        this._stop()\r\n    },\r\n\r\n    open() {\r\n        helper.dialog.open({name:\"deepsea-treasure\", width:500, height:360, html:this.html})\r\n        this._render() \r\n    }\r\n}\r\n\r\nhelper.pro.deepseaTreasure.html = String.raw\r\n`<html charset=\"UTF-8\">\r\n<head>\r\n<style>\r\n    body{line-height:26px; vertical-align:top; font-size:14px; font-family:\"Helvetica\",\"Lucida Console\",\"Microsoft soft\";}\r\n    h3{display:block; margin-top:12px; margin-bottom:8px; text-align:center; width:100%}\r\n    label{margin-left:2px; margin-right:2px;}\r\n    label.caption{display:inline-block; width:80px;}\r\n    span{margin-left:20px; margin-right:0px;}\r\n    input{color:#333;border:1px solid #999; border-radius:3px; outline-style:none; margin-right:12px; padding-top:2px; height:20px;}\r\n    input[type=\"radio\"]{margin-right:1px; vertical-align:top; margin-top:6px; width:14px; height:14px;}\r\n    select{color:#333; border:1px solid #999; border-radius:4px; outline-style:none; margin-left:0px; padding-top:1px; height:20px; }\r\n    button{border:1px solid #999; border-radius:3px; outline-style:none; text-align:center; margin-top:0px; width:60px; height:22px;}\r\n    button:hover{background-color:#ccc;} button:focus{background-color:#ccc;} button:active{transform: translateY(1px);}\r\n    input::-webkit-input-placeholder{color: #aaa;}\r\n    div.panel{border:1px solid silver; border-radius:6px; margin:8px; padding:4px; padding-left:8px; padding-right:0px; box-shadow: 3px 3px 6px gray;}\r\n    #state{margin-left:10px; margin-top:8px; text-align:center; height:20px}\r\n    #action{margin-left:145px; margin-top:8px; text-align:center; width:80px;}\r\n    #slots{height:75px;} .col-1{display:inline-block; width:90px;} .col-2{display:inline-block; width:120px;} .col-3{display:inline-block; width:110px;}\r\n    #history{height:160px; line-height:25px; padding-left:8px; overflow-x:hide; overflow-y:auto;} \r\n    div.item{padding:0px;margin:0px}\r\n    span[name=\"cname\"]{display:inline-block; margin-left:2px; width:156px} span[name=\"vtime\"]{display:inline-block; margin-left:2px; width:100px} span[name=\"lefttime\"]{display:inline-block; margin-left:2px; width:160px}\r\n<\/style>\r\n<\/script>      \r\n<script>\r\n    function $(a) {\r\n        return a && '#'==a[0] && document.getElementById(a.substring(1))\r\n    }\r\n\r\n    function onTimer() {\r\n        function format(t) {\r\n            var h = Math.floor(t\/3600)\r\n            var m = Math.floor((t-h*3600)\/60)\r\n            var s = t-h*3600-m*60\r\n            return (100+h).toString().substring(1) + ':' + (100+m).toString().substring(1) + ':' + (100+s).toString().substring(1)\r\n        }\r\n\r\n        for (var e of $(\"#slots\").children) {\r\n            var o = e.children[\"expire\"], v = e.children[\"iname\"], t = parent.ServerTime\r\n            o && o.value && 0==o.value.s && (o.innerText = '\u672a\u63a2\u6d4b')\r\n            o && o.value && 1==o.value.s && o.value.et<t && (o.innerText = '\u5f85\u9886\u53d6')\r\n            o && o.value && 1==o.value.s && o.value.et>=t && (o.innerText = format(o.value.et-t))\r\n            o && o.value && o.value.i && (v.innerText = parent.helper.pro.deepseaTreasure._iname(o.value.i))\r\n        } \r\n    }\r\n\r\n    function render(slots, history, state) {\r\n        if (slots) for(var i=0; i<slots.length; ++i) $(\"#slot-\"+i).children[\"expire\"].value = slots[i] \r\n\r\n        for(var html = \"\", i=0; i<history.length; ++i) html += \"\" == html ? history[i] : \"<br>\" + history[i]\r\n        $(\"#history\").innerHTML = html\r\n\r\n        $(\"#state\").innerText = state.running ? \"\u8fd0\u884c\u4e2d\" : \"\u672a\u8fd0\u884c\"\r\n        $(\"#state\").style.backgroundColor = state.running ? \"greenyellow\" : \"#aaa\"\r\n        $(\"#state\").style.borderRadius = \"2px\"\r\n\r\n        $(\"#action\").innerText = state.running ? \"\u505c\u6b62\" : \"\u542f\u52a8\";\r\n\r\n        window.timer || (window.timer = setInterval(onTimer, 1000))\r\n        onTimer()\r\n    }\r\n\r\n    function action() {\r\n        var o = parent.helper.pro.deepseaTreasure\r\n        o.state.running ? o.stop() : o.start()\r\n    }\r\n<\/script>\r\n<\/head>\r\n<body>\r\n    <h3>\u6df1\u6d77\u5bfb\u5b9d\u6d3b\u52a8<\/h3>\r\n    <div class=\"panel\" id=\"slots\">\r\n        <div id=\"slot-0\">\r\n            <label class=\"col-1\">Slot#1<\/label>\r\n            <label class=\"col-2\" name=\"expire\">\u672a\u5f00\u542f<\/label>\r\n            <label class=\"col-3\" name=\"iname\"><\/label>\r\n        <\/div>\r\n        <div id=\"slot-1\">\r\n            <label class=\"col-1\">Slot#2<\/label>\r\n            <label class=\"col-2\" name=\"expire\">\u672a\u5f00\u542f<\/label>\r\n            <label class=\"col-3\" name=\"iname\"><\/label>\r\n        <\/div>\r\n        <div id=\"slot-2\">\r\n            <label class=\"col-1\">Slot#3<\/label>\r\n            <label class=\"col-2\" name=\"expire\">\u672a\u5f00\u542f<\/label>\r\n            <label class=\"col-3\" name=\"iname\"><\/label>\r\n        <\/div>\r\n    <\/div>\r\n    <div class=\"panel\">\r\n        <div id=\"history\">\r\n        <\/div>\r\n    <\/div>\r\n    <span id=\"state\">\u672a\u8fd0\u884c<\/span>\r\n    <button id=\"action\" onclick=\"action()\">\u542f\u52a8<\/button>\r\n<\/body>\r\n<\/html>`\r\n\r\n\r\n\/\/-------------------------------------------------------------------------------------------------\r\n\/\/\u77ff\u4ea7\u5927\u4ea8\u6d3b\u52a8\r\nhelper.pro.dwarfMiner && helper.pro.dwarfMiner.free()\r\nhelper.pro.dwarfMiner = {\r\n    setting: {\r\n        cIndex: 0\r\n    },\r\n    state: {\r\n        running: !1\r\n    },\r\n    history: [],\r\n    \r\n    get aid() {\r\n        var a = __require(\"ActivityController\").ActivityController.Instance.getActivityList()\r\n        var e = a.find(e=>'ActivityDwarfMiner' == e.showUiType)\r\n        return e && e.id \r\n    },\r\n\r\n    get data() {\r\n        var a = __require(\"ActivityController\").ActivityController.Instance._activityMap[this.aid] \r\n        return a && a.extra && a.extra.map\r\n    },\r\n\r\n    get active() {\r\n        var a = __require(\"ActivityController\").ActivityController.Instance._activityMap[this.aid] \r\n        return a && a.endtime > ServerTime\r\n    },\r\n\r\n    _iname(id) {\r\n        var t = __require(\"TableManager\"), n = __require(\"TableName\"), l = __require(\"LocalManager\")\r\n        var o = t.TABLE.getTableDataById(n.TableName.ITEM, id.toString())\r\n        return o && l.LOCAL.getText(o.name)\r\n    },\r\n\r\n    _cname(cId) {\r\n        var t = __require(\"TableManager\"), n = __require(\"TableName\"), l = __require(\"LocalManager\")\r\n        var o = t.TABLE.getTableDataById(n.TableName.miner_chest_open, cId.toString())\r\n        o && (o = t.TABLE.getTableDataById(n.TableName.REWARD, o.reward.toString()))\r\n        o && (o = t.TABLE.getTableDataById(n.TableName.ITEM, o.item))\r\n        return o && l.LOCAL.getText(o.name)\r\n    },\r\n\r\n    cnum(cId) {\r\n        var t = __require(\"TableManager\"), n = __require(\"TableName\")\r\n        var o = t.TABLE.getTableDataById(n.TableName.miner_chest_open, cId.toString())\r\n        o && (o = t.TABLE.getTableDataById(n.TableName.REWARD, o.reward.toString()))\r\n        return o && o.num\r\n    },\r\n\r\n    _vtime(cId) {\r\n        var t = __require(\"TableManager\"), n = __require(\"TableName\")\r\n        var e = t.TABLE.getTableDataById(n.TableName.miner_chest_open, cId.toString())\r\n        return e && e.vanish_time\r\n    },\r\n    \r\n    async _reward() {\r\n        var a = this.data.list.find(e=>e.expireTime > 0 && e.expireTime <= ServerTime)\r\n        a && (a = await send(RequestId.DWARF_MINER_OPEN_CHEST, {activityID: this.aid, cIndex: a.cIndex}))\r\n        a && a.chestIndex == this.setting.cIndex && (this.setting.cIndex = null)\r\n        a && a.reward && this._log(a)\r\n    },\r\n\r\n    async _unlock() {\r\n        if (!this.data.list.find(e=>e.expireTime > 0)) { \r\n            var i = this.setting.cIndex \r\n            i || (i = this.data.list.concat().sort((d,e)=>this._vtime(d.cId) - this._vtime(e.cId))[0].cIndex)\r\n            i && await send(RequestId.DWARF_MINER_UNLOCK_CHEST, {activityID: this.aid, cIndex: i})\r\n        }\r\n    },\r\n\r\n    async _dig() {\r\n        var n = Number(__require(\"GameTools\").default.getDataConfigData(15039))\r\n        while (this.active && this.data.digCount < n && this.data.list.length < 4) {\r\n            var o = await send(RequestId.DWARF_MINER_DIG, {activityID: this.aid})\r\n            o && o.reward && this._log(o)\r\n        }\r\n    },\r\n\r\n    _log(a) {\r\n        this.history.splice(0, this.history.length-29) \r\n        this.history.push({time: ServerTime, item: a})\r\n        this._update()\r\n    },\r\n\r\n    async _execute() {\r\n        if (this.data) {\r\n            await this._reward()\r\n            await this._dig()\r\n            await this._unlock() \r\n        } \r\n    },\r\n\r\n\r\n    _onTimer() {\r\n        this._execute()\r\n    },\r\n\r\n    _start() {\r\n        this.timer || (this.timer = setInterval(this._onTimer.bind(this), 1000))\r\n    },\r\n\r\n    _stop() {\r\n        this.timer && (clearInterval(this.timer), this.timer = 0)\r\n    },\r\n\r\n    _update() {\r\n        this._save()\r\n        this._render()\r\n    },\r\n\r\n    _save() {\r\n        setItem(\"dwarf-miner\", JSON.stringify({setting:this.setting, state:this.state, history:this.history}))\r\n    },\r\n\r\n    async _load() {\r\n        var o = await getItem(\"dwarf-miner\")\r\n        o && (o = JSON.parse(o)) && (this.setting = o.setting, this.state = o.state, this.history = o.history)\r\n    },\r\n\r\n    _render() {\r\n        function timestr(t) {var a=new Date(); return a.setTime(t*1000), (a.getMonth()+1)+'-'+a.getDate()+\" \"+a.getHours()+\":\"+a.getMinutes().toString().padStart(2,'0')+\":\"+a.getSeconds().toString().padStart(2,'0')}\r\n        function logstr(e) {\r\n            var str = timestr(e.time)\r\n            e.item.reward && (str += '  \u5956\u52b1:' + this._iname(e.item.reward.items[0].itemId) + \", \u6570\u91cf:\"+e.item.reward.items[0].itemCount)\r\n            e.item.digCount && (str += '  \u7b2c' + e.item.digCount + '\u6b21\u6316\u77ff')\r\n            return str\r\n        }\r\n\r\n        var iframe = helper.dialog.iframe;\r\n        if (iframe && iframe.name == \"dwarf-miner\") {\r\n            var chest = [], history=[]\r\n            this.data && this.data.list.forEach(e=>chest.push({cIndex:e.cIndex, cname:this._cname(e.cId), vtime:this._vtime(e.cId), expire:e.expireTime}))\r\n            for (var i=this.history.length-1; i>=0; --i) history.push(logstr.call(this, this.history[i]))\r\n            iframe.contentWindow.render(this.setting, chest, history, this.state)\r\n        }\r\n    },\r\n\r\n    start() {\r\n        !this.state.running && (this.state.running = !0, this._start(), this._update())\r\n    },\r\n     \r\n    stop() {\r\n        this.state.running && (this.state.running = !1, this._stop(), this._update())\r\n    },\r\n     \r\n    apply(cIndex) {\r\n        this.setting.cIndex = Number(cIndex)\r\n        this._update()\r\n    },\r\n     \r\n    async init() {\r\n        await this._load()\r\n        this.state.running && this._start()\r\n    },\r\n\r\n    free() {\r\n        this._stop()\r\n    },\r\n\r\n    open() {\r\n        helper.dialog.open({name:\"dwarf-miner\", width:500, height:391, html:this.html})\r\n        this._render() \r\n    }\r\n}\r\n\r\nhelper.pro.dwarfMiner.html = String.raw\r\n`<html charset=\"UTF-8\">\r\n<head>\r\n<style>\r\n    body{line-height:26px; vertical-align:top; font-size:14px; font-family:\"Helvetica\",\"Lucida Console\",\"Microsoft soft\";}\r\n    h3{display:block; margin-top:12px; margin-bottom:8px; text-align:center; width:100%}\r\n    label{margin-left:2px; margin-right:2px;}\r\n    label.caption{display:inline-block; width:80px;}\r\n    span{margin-left:20px; margin-right:0px;}\r\n    input{color:#333;border:1px solid #999; border-radius:3px; outline-style:none; margin-right:12px; padding-top:2px; height:20px;}\r\n    input[type=\"radio\"]{margin-right:1px; vertical-align:top; margin-top:6px; width:14px; height:14px;}\r\n    select{color:#333; border:1px solid #999; border-radius:4px; outline-style:none; margin-left:0px; padding-top:1px; height:20px; }\r\n    button{border:1px solid #999; border-radius:3px; outline-style:none; text-align:center; margin-top:0px; width:60px; height:22px;}\r\n    button:hover{background-color:#ccc;} button:focus{background-color:#ccc;} button:active{transform: translateY(1px);}\r\n    input::-webkit-input-placeholder{color: #aaa;}\r\n    div.panel{border:1px solid silver; border-radius:6px; margin:8px; padding:4px; padding-left:8px; padding-right:0px; box-shadow: 3px 3px 6px gray;}\r\n    #state{margin-left:10px; margin-top:8px; text-align:center; height:20px}\r\n    #action{margin-left:140px; margin-top:8px; text-align:center; width:80px;}\r\n    #chest{height:104px;}\r\n    #history{height:160px; line-height:25px; padding-left:8px; overflow-x:hide; overflow-y:auto;} \r\n    div.item{padding:0px;margin:0px}\r\n    span[name=\"cname\"]{display:inline-block; margin-left:2px; width:156px} span[name=\"vtime\"]{display:inline-block; margin-left:2px; width:100px} span[name=\"lefttime\"]{display:inline-block; margin-left:2px; width:160px}\r\n<\/style>\r\n<\/script>      \r\n<script>\r\n    function $(a) {\r\n        return a && '#'==a[0] && document.getElementById(a.substring(1))\r\n    }\r\n\r\n    function onTimer() {\r\n        function format(t) {\r\n            var h = Math.floor(t\/3600)\r\n            var m = Math.floor((t-h*3600)\/60)\r\n            var s = t-h*3600-m*60\r\n            return (100+h).toString().substring(1) + ':' + (100+m).toString().substring(1) + ':' + (100+s).toString().substring(1)\r\n        }\r\n\r\n        for (var e of $(\"#chest\").children) {\r\n            var o = e.children[\"expire\"]\r\n            o.value && (o.innerText = format(o.value-parent.ServerTime))\r\n        } \r\n    }\r\n\r\n    function apply(e) {\r\n        var id = e.parentNode.id\r\n        id && parent.helper.pro.dwarfMiner.apply(id.substring(6));\r\n    }\r\n\r\n    function render(setting, chest, history, state) {\r\n        var html=\"\"\r\n        chest.forEach(e=>{\r\n            html += '<div class=\"item\" id=\"index_'+e.cIndex+'\"><input type=\"radio\" name=\"prior\" onclick=\"apply(this)\">',\r\n            html += '<span name=\"cname\">'+e.cname+'<\/span>',\r\n            html += '<span name=\"vtime\">'+(e.vtime\/60)+'\u5c0f\u65f6<\/span>',\r\n            html += '<span name=\"expire\"><\/span><\/div>'\r\n        })\r\n        $(\"#chest\").innerHTML = html\r\n\r\n        chest.forEach(e=>$(\"#index_\"+e.cIndex).children[\"expire\"].value = e.expire)\r\n   \r\n        html = \"\"\r\n        history.forEach(e=>html += \"\" == html ? e : \"<br>\"+e)\r\n        $(\"#history\").innerHTML = html\r\n\r\n        chest.length && setting.cIndex && (\r\n            $(\"#index_\"+setting.cIndex).children[\"prior\"].checked = !0,\r\n            $(\"#index_\"+setting.cIndex).children[\"expire\"].value == 0 && ( \r\n                $(\"#index_\"+setting.cIndex).children[\"expire\"].innerText = \"\u4e0b\u8f6e\u4f18\u5148\",\r\n                $(\"#index_\"+setting.cIndex).children[\"expire\"].style.color = state.running ? \"purple\": \"black\" \r\n            )\r\n        )\r\n\r\n        $(\"#state\").innerText = state.running ? \"\u8fd0\u884c\u4e2d\" : \"\u672a\u8fd0\u884c\"\r\n        $(\"#state\").style.backgroundColor = state.running ? \"greenyellow\" : \"#aaa\"\r\n        $(\"#state\").style.borderRadius = \"2px\"\r\n\r\n        $(\"#action\").innerText = state.running ? \"\u505c\u6b62\" : \"\u542f\u52a8\"\r\n\r\n        window.timer || (window.timer = setInterval(onTimer, 1000))\r\n        onTimer()\r\n    }\r\n\r\n    function action() {\r\n        var o = parent.helper.pro.dwarfMiner\r\n        o.state.running ? o.stop() : o.start()\r\n    }\r\n<\/script>\r\n<\/head>\r\n<body>\r\n    <h3>\u77ff\u4ea7\u5927\u4ea8\u6d3b\u52a8<\/h3>\r\n    <div class=\"panel\" id=\"chest\">\r\n    <\/div>\r\n    <div class=\"panel\">\r\n        <div id=\"history\">\r\n        <\/div>\r\n    <\/div>\r\n    <span id=\"state\">\u672a\u8fd0\u884c<\/span>\r\n    <button id=\"action\" onclick=\"action()\">\u542f\u52a8<\/button>\r\n<\/body>\r\n<\/html>`\r\n\r\n\r\n\/\/-------------------------------------------------------------------------------------------------\r\n\/\/\u9057\u8ff9\u8d44\u6e90\u4fe1\u606f\r\nhelper.pro.fortressResource = {\r\n    resources:[],\r\n\r\n    async _search(x, y) {\r\n        var o = await this._getWorldInfo(x, y)\r\n        \/\/pointType=38:\u8054\u76df\u7530\r\n        o && o.pointList && o.pointList.forEach(p=>p.r && p.pointType == 38 && !this.resources.find(e=>e.x==p.x && e.y==p.y) && this.resources.push(p))\r\n    },\r\n\r\n    async _getWorldInfo(x, y) {\r\n        return send(RequestId.GET_WORLD_INFO, {\r\n                x: x,\r\n                y: y,\r\n                k: UserData.ServerId,\r\n                rid: 0,\r\n                width: 28,\r\n                height: 40,\r\n                marchInfo: !1,\r\n                viewLevel: 1\r\n            }\r\n        )\r\n    },\r\n\r\n    async _getResources() {\r\n        this.resources = []\r\n        await this._search(408-80,308) \r\n        await this._search(408,308) \r\n        await this._search(408+80,308)\r\n\r\n        await this._search(408-80,648) \r\n        await this._search(408, 648) \r\n        await this._search(408+80,648)\r\n   },\r\n\r\n    _render() {\r\n        var iframe = helper.dialog.iframe;\r\n        if (iframe && iframe.name == \"fortress-resource\") {\r\n            var res = this.resources.concat().sort((d,e)=>\r\n                Math.abs(d.r.expireTime-e.r.expireTime)>3 ? e.r.expireTime - d.r.expireTime :\r\n                d.r.itemId != e.r.itemId ? d.r.itemId - e.r.itemId :\r\n                d.r.ownerId != e.r.ownerId ? d.r.ownerId - e.r.ownerId :\r\n                d.x != e.x ? d.x - e.x : d.y - e.y \r\n            )\r\n\r\n            \/\/\u7ffb\u8bd1\u7530\u7c7b\u578b\r\n            res.forEach(e=>{\r\n                var data = __require(\"TableManager\").TABLE.getTableDataById(__require(\"TableName\").TableName.RESOURCE, e.r.itemId.toString())\r\n                e.text = data && __require(\"LocalManager\").LOCAL.getText(data.name.toString())\r\n            })\r\n\r\n            iframe.contentWindow.render(res)\r\n        }\r\n    },\r\n\r\n    goto(e) {\r\n        var f = __require(\"WorldMapTools\")\r\n          , r = __require(\"NWorldMapData\").default.instance.serverData.currentSubMap\r\n\r\n        e = e.innerText.split(',')   \r\n        e.length == 2 && (f.default.goToWorldMapByPos({\r\n            x: e[0],\r\n            y: e[1],\r\n            s: UserData.ServerId,\r\n            subMap: r\r\n        }), this.close())\r\n    },\r\n\r\n    async open() {\r\n        helper.dialog.open({name:\"fortress-resource\", width:480, height:390, html:this.html})\r\n        await this._getResources()\r\n        this._render() \r\n    },\r\n\r\n    close() {\r\n        helper.dialog.close()\r\n    }\r\n}\r\n\r\nhelper.pro.fortressResource.html = String.raw\r\n`<html charset=\"UTF-8\">\r\n<head>\r\n<style>\r\n    body{line-height:30px; vertical-align:top; padding:8px; font-size:14px; font-family:\"Helvetica\",\"Lucida Console\",\"Microsoft soft\";}\r\n    h3{display:block; margin-bottom:8px; text-align:center; width:100%}\r\n    div.panel{border:1px solid silver; border-radius:6px; margin-bottom:8px; padding:10px; padding-right:0px; box-shadow:3px 3px 6px gray;}\r\n    div.container{height:260px; overflow:auto;}\r\n    button{border:1px solid #999; border-radius:3px; outline-style:none; text-align:center; height:22px;} button:hover{background-color:#ccc;} button:focus{background-color:#ccc;} button:active{transform: translateY(1px);}\r\n    table,th,td{font-size:14px; font-family:\"monospace\"; border: 1px solid #aaa; border-collapse: collapse; text-align:left;} th{background-color: #ddd; white-space: nowrap;}\r\n    #download{margin-left:185px; margin-top:8px; width:80px;}\r\n<\/style>\r\n<\/script>      \r\n<script>\r\n    function $(a) {\r\n        return a && '#'==a[0] && document.getElementById(a.substring(1))\r\n    }\r\n\r\n    function render(resources) {\r\n        for (var i=0; i<resources.length; ++i) {\r\n            var e = resources[i]\r\n\r\n            var row = document.createElement('tr')\r\n            var col = document.createElement('td')\r\n            col.innerText = (i+1).toString()\r\n            row.appendChild(col)\r\n            \r\n            \/\/\u8d44\u6e90\u5750\u6807\r\n            col = document.createElement('td')\r\n            col.innerHTML = '<a href=\"javascript:void(0);\" onclick=\"parent.helper.pro.fortressResource.goto(this)\">' + e.x + ',' + e.y + '<\/a>'\r\n            row.appendChild(col)\r\n            \r\n            \/\/\u8d44\u6e90\u7c7b\u578b\r\n            col = document.createElement('td')\r\n            col.innerText = e.text \r\n            row.appendChild(col)\r\n\r\n            \/\/\u5237\u65b0\u65f6\u95f4\r\n            col = document.createElement('td')\r\n            var t = new Date((e.r.expireTime - 14400)*1000)\r\n            col.innerText = (t.getMonth()+1) + '-' + t.getDate() + ' ' + t.getHours() + ':' + t.getMinutes().toString().padStart(2,'0') + \":\" + t.getSeconds().toString().padStart(2,'0')\r\n            row.appendChild(col)\r\n\r\n            \/\/\u5360\u6709\u8005\r\n            col = document.createElement('td')\r\n            col.innerText = e.r.playerInfo ? JSON.parse(e.r.playerInfo).username : ''\r\n            row.appendChild(col)\r\n\r\n            $('#resources').children[1].appendChild(row)\r\n        }\r\n    }\r\n\r\n    function download() {\r\n        var html = \"<html><head><meta charset='utf-8' \/><\/head><body>\" + document.getElementsByTagName(\"table\")[0].outerHTML + \"<\/body><\/html>\";\r\n        var blob = new Blob([html], { type: \"application\/vnd.ms-excel\" })\r\n\r\n        var a = document.createElement('a')\r\n        a.href = URL.createObjectURL(blob), a.download = \"fortress-res.xls\", a.style.display = 'none'\r\n        document.body.appendChild(a) && a.click() && document.body.removeChild(a)\r\n    }\r\n<\/script>\r\n<\/head>\r\n<body>\r\n    <h3>\u9057\u8ff9\u8d44\u6e90\u4fe1\u606f<\/h3>\r\n    <div class=\"panel\">\r\n        <div class=\"container\">\r\n            <table id=\"resources\" cellpadding=\"2px\">\r\n                <thead>\r\n                    <tr><th>\u5e8f\u53f7<\/th><th>\u8d44\u6e90\u5750\u6807<\/th><th>\u8d44\u6e90\u7c7b\u578b<\/th><th>\u5237\u65b0\u65f6\u95f4<\/th><th>\u91c7\u96c6\u4eba<\/th><\/tr>\r\n                <thead>\r\n                <tbody>\r\n                <\/tbody>\r\n            <\/table>\r\n        <\/div>\r\n    <\/div>\r\n    <button id=\"download\" onclick=\"download()\">\u4e0b\u8f7d<\/button>\r\n<\/body>\r\n<\/html>`\r\n\r\n\r\n\/\/-------------------------------------------------------------------------------------------------\r\n\/\/\u5b9d\u85cf\u5361\u8f66\u4fe1\u606f\r\nhelper.pro.treasureCar = {\r\n    config:[\r\n        {name:'\u56db\u56fd\u66d9\u5149\u4e4b\u5730', points:[\r\n            {label: \"\u4e2d\u7acb\u533aA1\", x: 935, y: 345},\r\n            {label: \"\u4e2d\u7acb\u533aB1\", x: 935, y: 935},\r\n            {label: \"\u4e2d\u7acb\u533aC1\", x: 345, y: 935},\r\n            {label: \"\u4e2d\u7acb\u533aD1\", x: 345, y: 345},\r\n            {label: \"\u4e2d\u7acb\u533aE1\", x: 835, y: 445},\r\n            {label: \"\u4e2d\u7acb\u533aF1\", x: 835, y: 835},\r\n            {label: \"\u4e2d\u7acb\u533aG1\", x: 445, y: 835},\r\n            {label: \"\u4e2d\u7acb\u533aH1\", x: 445, y: 445}]\r\n        },\r\n        {name:'\u516b\u56fd\u6c38\u6052\u4e4b\u5730', points:[\r\n            {label: \"\u4e2d\u7acb\u533aA2\", x: 573, y: 189},\r\n            {label: \"\u4e2d\u7acb\u533aB2\", x: 934, y: 206},\r\n            {label: \"\u4e2d\u7acb\u533aC2\", x: 950, y: 572},\r\n            {label: \"\u4e2d\u7acb\u533aD2\", x: 937, y: 935},\r\n            {label: \"\u4e2d\u7acb\u533aD3\", x: 780, y: 776},\r\n            {label: \"\u4e2d\u7acb\u533aE2\", x: 575, y: 953},\r\n            {label: \"\u4e2d\u7acb\u533aF2\", x: 209, y: 937},\r\n            {label: \"\u4e2d\u7acb\u533aG2\", x: 194, y: 560},\r\n            {label: \"\u4e2d\u7acb\u533aH2\", x: 207, y: 207},\r\n            {label: \"\u4e2d\u7acb\u533aH3\", x: 365, y: 365}]\r\n        },\r\n        {name:'\u516b\u56fd\u66d9\u5149\u4e4b\u5730', points:[\r\n            {label: \"\u4e2d\u7acb\u533aA2\", x: 573, y: 189},\r\n            {label: \"\u4e2d\u7acb\u533aB2\", x: 934, y: 206},\r\n            {label: \"\u4e2d\u7acb\u533aC2\", x: 950, y: 572},\r\n            {label: \"\u4e2d\u7acb\u533aD2\", x: 937, y: 935},\r\n            {label: \"\u4e2d\u7acb\u533aD3\", x: 780, y: 776},\r\n            {label: \"\u4e2d\u7acb\u533aE2\", x: 575, y: 953},\r\n            {label: \"\u4e2d\u7acb\u533aF2\", x: 209, y: 937},\r\n            {label: \"\u4e2d\u7acb\u533aG2\", x: 194, y: 560},\r\n            {label: \"\u4e2d\u7acb\u533aH2\", x: 207, y: 207},\r\n            {label: \"\u4e2d\u7acb\u533aH3\", x: 365, y: 365}]\r\n        }\r\n    ],\r\n\r\n    \/\/\u67e5\u627e\u5b9d\u85cf\u5361\u8f66\u62bc\u8fd0\u4fe1\u606f\r\n    \/\/marchType==74,\u5b9d\u85cf\u5361\u8f66\uff0crName:\u9a7b\u5b88\u4eba, reinforceSkin>=0, \u5f53\u81ea\u5df1\u9a7b\u5b88\u65f6:rName=\"\", ownerSkin>=0 ,\u5373\uff1a\u5f53\u65e0\u4eba\u9a7b\u5b88\u65f6\uff0cownerSkin == -1 && reinforceSkin == -1\r\n    async _getMarches(e) {\r\n        this.marches = []\r\n        var o = await send(RequestId.GET_WORLD_INFO, {x:e.x, y:e.y, k:UserData.ServerId, marchInfo:!0, viewLevel:1})   \/\/ x,y:\u5b9d\u85cf\u5361\u8f66\u8d77\u59cb\u5750\u6807\r\n        if (o && o.marchList) {\r\n            for(var e of o.marchList) {\r\n                if (74 == e.marchType) {\r\n                    e.escort = e.ownerSkin>=0 || e.reinforceSkin>=0 ? await send(RequestId.SPECIAL_CAR_INFO, {marchId: e.marchId}) : null\r\n                    this.marches.push(e)\r\n                }\r\n            }\r\n        }\r\n        this.marches.sort((d,e)=>e.marchArrive - d.marchArrive)\r\n    },\r\n\r\n    _render() {\r\n        var iframe = helper.dialog.iframe\r\n        if (iframe && iframe.name == \"treasure-car\") {\r\n            var c = this.config[this.index]\r\n            iframe.contentWindow.render(c, this.selected, this.marches)\r\n        }\r\n    },\r\n\r\n    async _execute() {\r\n        this.selected ? await this._getMarches(this.selected) : (this.marches = [])\r\n        this._render()\r\n    },\r\n\r\n    async _onTimer() {\r\n        if (!this.busy) {\r\n            try {this.busy = 1, await this._execute()} finally{this.busy = 0}\r\n        }      \r\n    },\r\n\r\n    apply(label) {\r\n        var c = this.config[this.index]\r\n        this.selected = c && c.points.find(e=>e.label == label)\r\n        this._onTimer()\r\n    },\r\n\r\n    goto_1(march) {\r\n        if (1 == march.state) {\r\n            var r = (ServerTime - march.marchStartTime)\/(march.marchArrive - march.marchStartTime)\r\n            var x = Math.floor((march.target.tx-march.begin.bx)*r + march.begin.bx)\r\n            var y = Math.floor((march.target.ty-march.begin.by)*r + march.begin.by) \r\n            1 == (x % 2 + y % 2) && y++\r\n            __require(\"WorldMapTools\").default.goToWorldMapByPos({x: x, y: y, s: march.begin.bk, subMap: 0})\r\n            this.close()\r\n        }\r\n    },\r\n\r\n    goto_2(march) {\r\n        if (march && march.marchInfo) {\r\n            var x = march.marchInfo.begin.bx\r\n            var y = march.marchInfo.begin.by \r\n            var s = march.marchInfo.begin.bk\r\n            __require(\"WorldMapTools\").default.goToWorldMapByPos({x: x, y: y, s: s, subMap: 0})\r\n            this.close()\r\n        }\r\n    },\r\n\r\n    init() {\r\n        var m = __require(\"GameTools\")\r\n        this.index = m.default.isC4Open() ? 0 : m.default.isC8Open() ? 1 : m.default.isC8S2Open() ? 2 : -1\r\n        this.selected = null\r\n        this.marches = []\r\n    },\r\n\r\n    open() {\r\n        helper.dialog.open({name:\"treasure-car\", width:750, height:500, html:this.html, onclose:this.onclose.bind(this)})\r\n        \/\/this.timer = setInterval(this._onTimer.bind(this), 1000)\r\n        this._onTimer()\r\n    },\r\n\r\n    close() {\r\n        helper.dialog.close()\r\n    },\r\n\r\n    onclose() {\r\n        clearInterval(this.timer)\r\n    }\r\n}\r\n\r\nhelper.pro.treasureCar.html = String.raw\r\n`<html charset=\"UTF-8\">\r\n<head>\r\n<style>\r\n    body{line-height:30px; vertical-align:top; padding:4px; margin-bottom:0px; padding-bottom:0px; font-size:14px; font-family:\"Helvetica\",\"Lucida Console\",\"Microsoft soft\";}\r\n    h3{display:block; margin-bottom:8px; text-align:center; width:100%}\r\n    label{margin-left:2px; margin-right:2px;}\r\n    input[type=\"checkbox\"]{margin-right:1px; vertical-align:top; margin-top:8px; width:14px; height:14px;}\r\n    select{color:#333; border:1px solid #999; border-radius:4px; outline-style:none; margin-left:0px; padding-top:1px;}\r\n    div.panel{border:1px solid silver; border-radius:6px; margin-bottom:8px; padding:10px; padding-right:0px; box-shadow:3px 3px 6px gray;}\r\n    div.container{height:360px; overflow-x:auto; overflow-y:auto;}\r\n    button{border:1px solid #999; border-radius:3px; outline-style:none; text-align:center; height:22px;} button:hover{background-color:#ccc;} button:focus{background-color:#ccc;} button:active{transform: translateY(1px);}\r\n    thead{background-color: #ddd; white-space: nowrap;} tbody{white-space: nowrap;}\r\n    table,th,td{font-size:14px; font-family:\"monospace\"; border: 1px solid #aaa; border-collapse: collapse; text-align:left;} th{background-color: #ddd; white-space: nowrap;}\r\n    #config{height:26px}\r\n<\/style>\r\n<\/script>      \r\n<script>\r\n    function $(a) {\r\n        return a && '#'==a[0] && document.getElementById(a.substring(1))\r\n    }\r\n\r\n    function escortInfo(e) {\r\n        var TABLE = parent.__require(\"TableManager\").TABLE\r\n        var TableName = parent.__require(\"TableName\").TableName\r\n        var s = '<a href=\"javascript:void(0);\" onclick=\"parent.helper.pro.treasureCar.goto_2(this.parentNode.march)\">' + e.marchInfo.name + '<\/a>  '\r\n        \r\n        \/\/\u9a7b\u5b88\u5175\u79cd\u6570\u91cf\r\n        var g = {}\r\n        e && e.armyInfoList.forEach(e=>{\r\n            var o = TABLE.getTableDataById(TableName.ARMY, e.armyId)\r\n            var k = o && ((o.type - o.type % 100) * 100 + o.level)\r\n            k && (g[k] = (g[k] ? g[k] : 0) + e.armyDbIds.length + (o.mecha_id ? 10000 : 0))\r\n        })\r\n\r\n        for(var k in g) {\r\n            var t = Math.floor(k\/1000)\r\n            var l = Math.floor(k%1000)\r\n            var n = g[k] % 10000\r\n            var m = (g[k] > 10000) ? \"(*)\" : \"\"\r\n            s += l + '\u7ea7' + (t == 10 ? '\u9646' : t == 20 ? '\u6d77' : '30' ? '\u7a7a' : t) + ':' + n + m + ', '  \r\n        }\r\n        s = s.substring(0, s.length-2)\r\n        return s\r\n    }\r\n\r\n    function render(config, selected, marches) {\r\n        $(\"#area\").options.length = 0\r\n        for(var i = 0, a = config; a && i < a.points.length; ++i) {\r\n            var e = a.points[i]\r\n            var option = new Option(e.label, e.label)\r\n            \/\/option.selected = selected && (e.label == selected.label)\r\n            $(\"#area\").options.add(option)\r\n        }\r\n        $(\"#area\").value = selected ? selected.label : \"\"\r\n\r\n        $(\"#marches\").children[1].innerHTML = \"\"\r\n        for(var i = 0; i < marches.length; ++i) {\r\n            var e = marches[i]\r\n            var row = document.createElement('tr')\r\n            var col = document.createElement('td')\r\n            col.march = e\r\n            \/\/col.innerHTML = '<a href=\"javascript:void(0);\" onclick=\"parent.helper.pro.treasureCar.goto_1(this.parentNode.march)\">' + (i+1).toString().padStart(3,'0') + '<\/a>'\r\n            col.innerHTML = '<a href=\"javascript:void(0);\" onclick=\"parent.helper.pro.treasureCar.goto_1(this.parentNode.march)\">' + e.name + '<\/a>'\r\n            row.appendChild(col)\r\n\r\n            \/\/col = document.createElement('td')\r\n            \/\/col.innerText = e.name\r\n            \/\/row.appendChild(col)\r\n           \r\n            \/\/\u8d44\u6e90\u4fe1\u606f\r\n            col = document.createElement('td')\r\n            col.innerText = e.lv + '\u7ea7, ' + (100 == e.rate ? 0 : 75 == e.rate ? 1 : 50 == e.rate ? 2 : 3) + '\u6b21'\r\n            row.appendChild(col)\r\n\r\n            \/\/\u9a7b\u5b881\r\n            col = document.createElement('td')\r\n            e.escort && e.escort.ownerMarch && (\r\n                col.march = e.escort.ownerMarch, \r\n                col.innerHTML = escortInfo(col.march)\r\n            )\r\n            row.appendChild(col)\r\n\r\n            \/\/\u9a7b\u5b882\r\n            col = document.createElement('td')\r\n            e.escort && e.escort.reinforceMarch && (\r\n                col.march = e.escort.reinforceMarch, \r\n                col.innerHTML = escortInfo(col.march)\r\n            )\r\n            row.appendChild(col)\r\n\r\n            \/\/\u5269\u4f59\u65f6\u95f4\r\n            var t = Math.max(0, e.marchArrive - parent.ServerTime), h = Math.floor(t\/3600), m = Math.floor((t-h*3600)\/60), s = t-h*3600-m*60\r\n            col = document.createElement('td')\r\n            col.innerText = h.toString().padStart(2,'0') + ':' + m.toString().padStart(2,'0') + ':' + s.toString().padStart(2,'0')\r\n            row.appendChild(col)\r\n\r\n            $('#marches').children[1].appendChild(row)\r\n        }\r\n    }\r\n\r\n    function apply() {\r\n        parent.helper.pro.treasureCar.apply($(\"#area\").value)    \r\n    }\r\n<\/script>\r\n<\/head>\r\n<body>\r\n    <h3>\u5b9d\u85cf\u5361\u8f66\u4fe1\u606f<\/h3>\r\n    <div id=config class=\"panel\">\r\n        <label>\u9009\u62e9\u4e2d\u7acb\u533a:<\/label>\r\n        <select id=\"area\" style=\"width:100px\"; onchange=\"apply()\">\r\n        <\/select>\r\n    <\/div>\r\n    <div class=\"panel\">\r\n        <div class=\"container\">\r\n            <table id=\"marches\" cellpadding=\"2px\">\r\n                <thead>\r\n                    <tr><th>\u6240\u6709\u8005<\/th><th>\u8d44\u6e90\u4fe1\u606f<\/th><th>\u9a7b\u5b881<\/th><th>\u9a7b\u5b882<\/th><th>\u5269\u4f59\u65f6\u95f4<\/th><\/tr>\r\n                <\/thead>\r\n                <tbody>\r\n                <\/tbody>\r\n            <\/table>\r\n        <\/div>\r\n    <\/div>\r\n<\/body>\r\n<\/html>`\r\n\r\n\r\nhelper.pro.miscRewards && helper.pro.miscRewards.free()\r\nhelper.pro.miscRewards = {\r\n    setting: {\r\n        dailygift: !1,     \/\/\u6bcf\u65e5\u8865\u7ed9\r\n        diamond: !1,       \/\/\u94bb\u77f3\u91d1\u5e01\r\n        alliance: !1,      \/\/\u8054\u76df\u5e2e\u52a9 \r\n        wilderness: !1,    \/\/\u8352\u91ce\u884c\u52a8\r\n        adventure: !1,     \/\/\u8fdc\u5f81\u884c\u52a8\r\n        island: !1,        \/\/\u5c9b\u5c7f\u626b\u8361\r\n        bargain: !1        \/\/\u6298\u6263\u5546\u57ce\r\n    },\r\n\r\n    _save() {\r\n        setItem(\"misc-rewards\", JSON.stringify({setting:this.setting}))\r\n    },\r\n\r\n    async _load() {\r\n        var o = await getItem(\"misc-rewards\")\r\n        o && (o = JSON.parse(o)) && (\r\n            o.setting.dailygift && (this.setting.dailygift = o.setting.dailygift),\r\n            o.setting.diamond && (this.setting.diamond = o.setting.diamond),\r\n            o.setting.alliance && (this.setting.alliance = o.setting.alliance),\r\n            o.setting.wilderness && (this.setting.wilderness = o.setting.wilderness),\r\n            o.setting.adventure && (this.setting.adventure = o.setting.adventure),\r\n            o.setting.island && (this.setting.island = o.setting.island),\r\n            o.setting.bargain && (this.setting.bargain = o.setting.bargain)\r\n        )\r\n    },\r\n\r\n    _start() {\r\n        this.setting.dailygift && helper.pro.dailyGift.start()\r\n        this.setting.diamond && helper.pro.dayDiamond.start()\r\n        this.setting.alliance && helper.pro.allianceHelp.start()\r\n        this.setting.adventure && helper.pro.adventureReward.start()\r\n        this.setting.wilderness && helper.pro.wildernessReward.start()\r\n        this.setting.island && helper.pro.isleSweep.start()\r\n        this.setting.bargain && helper.pro.bargainShop.start()\r\n    },\r\n\r\n    _stop() {\r\n        this.setting.dailygift || helper.pro.dailyGift.stop()\r\n        this.setting.diamond || helper.pro.dayDiamond.stop()\r\n        this.setting.alliance || helper.pro.allianceHelp.stop()\r\n        this.setting.adventure || helper.pro.adventureReward.stop()\r\n        this.setting.wilderness || helper.pro.wildernessReward.stop()\r\n        this.setting.island || helper.pro.isleSweep.stop()\r\n        this.setting.bargain || helper.pro.bargainShop.stop()\r\n    },\r\n\r\n    apply(setting) {\r\n        this.setting = setting\r\n        this._save(), this._stop(), this._start()\r\n    },\r\n\r\n    async init() {\r\n        helper.pro.dailyGift.init && helper.pro.dailyGift.init()\r\n        helper.pro.dayDiamond.init && await helper.pro.dayDiamond.init()\r\n        helper.pro.allianceHelp.init && helper.pro.allianceHelp.init()\r\n        helper.pro.adventureReward.init && await helper.pro.adventureReward.init()\r\n        helper.pro.wildernessReward.init && await helper.pro.wildernessReward.init()\r\n        helper.pro.isleSweep.init && await helper.pro.isleSweep.init()\r\n        helper.pro.bargainShop.init && await helper.pro.bargainShop.init()\r\n        await this._load(), this._start()\r\n    },\r\n\r\n    free() {\r\n        this._stop()\r\n    },\r\n\r\n    dayInit() {\r\n        helper.pro.dailyGift.dayInit && helper.pro.dailyGift.dayInit()\r\n        helper.pro.dayDiamond.dayInit && helper.pro.dayDiamond.dayInit()\r\n        helper.pro.allianceHelp.dayInit && helper.pro.allianceHelp.dayInit()\r\n        helper.pro.adventureReward.dayInit && helper.pro.adventureReward.dayInit()\r\n        helper.pro.wildernessReward.dayInit && helper.pro.wildernessReward.dayInit()\r\n        helper.pro.isleSweep.dayInit && helper.pro.isleSweep.dayInit()\r\n        helper.pro.bargainShop.dayInit && helper.pro.bargainShop.dayInit()\r\n     },\r\n\r\n    async open() {\r\n        helper.dialog.open({name:\"misc-rewards\", width:500, height:200, html:this.html})\r\n        helper.dialog.iframe.contentWindow.render(this.setting) \r\n    }\r\n}\r\n\r\nhelper.pro.miscRewards.html = String.raw\r\n`<html charset=\"UTF-8\">\r\n<head>\r\n<style>\r\n    body{line-height:30px; vertical-align:top; padding:8px; font-size:14px; font-family:\"Helvetica\",\"Lucida Console\",\"Microsoft soft\";}\r\n    h3{display:block; margin-bottom:8px; text-align:center; width:100%}\r\n    div.panel{border:1px solid silver; border-radius:6px; margin-bottom:8px; padding:10px; padding-right:0px; box-shadow:3px 3px 6px gray; height:100px;}\r\n    input[type=\"checkbox\"]{margin-right:1px; vertical-align:top; margin-top:8px; width:14px; height:14px;}\r\n    label{margin-right:12px;}\r\n<\/style>\r\n<\/script>      \r\n<script>\r\n    function $(a) {\r\n        return a && '#'==a[0] && document.getElementById(a.substring(1))\r\n    }\r\n\r\n    function render(setting) {\r\n        $('#dailygift').checked = setting.dailygift\r\n        $('#diamond').checked = setting.diamond\r\n        $('#alliance').checked = setting.alliance\r\n        $('#adventure').checked = setting.adventure\r\n        $('#wilderness').checked = setting.wilderness\r\n        $('#island').checked = setting.island\r\n        $('#bargain').checked = setting.bargain\r\n    }\r\n    function apply() {\r\n        var setting = {}\r\n        setting.dailygift = $('#dailygift').checked\r\n        setting.diamond = $('#diamond').checked\r\n        setting.alliance = $('#alliance').checked\r\n        setting.adventure = $('#adventure').checked\r\n        setting.wilderness = $('#wilderness').checked\r\n        setting.island = $('#island').checked\r\n        setting.bargain = $('#bargain').checked\r\n        parent.helper.pro.miscRewards.apply(setting)\r\n    }\r\n<\/script>\r\n<\/head>\r\n<body>\r\n    <h3>\u81ea\u52a8\u5e38\u89c4\u4efb\u52a1<\/h3>\r\n    <div class=\"panel\">\r\n        <input type=\"checkbox\" id=\"dailygift\" onclick=\"apply()\"><label>\u6bcf\u65e5\u8865\u7ed9<\/label>\r\n        <input type=\"checkbox\" id=\"diamond\" onclick=\"apply()\"><label>\u94bb\u77f3\u91d1\u5e01<\/label>\r\n        <input type=\"checkbox\" id=\"alliance\" onclick=\"apply()\"><label>\u8054\u76df\u5e2e\u52a9<\/label>\r\n        <input type=\"checkbox\" id=\"wilderness\" onclick=\"apply()\"><label>\u8352\u91ce\u884c\u52a8<\/label>\r\n        <input type=\"checkbox\" id=\"adventure\" onclick=\"apply()\"><label>\u8fdc\u5f81\u884c\u52a8<\/label>\r\n        <input type=\"checkbox\" id=\"island\" onclick=\"apply()\"><label>\u5c9b\u5c7f\u626b\u8361<\/label>\r\n        <input type=\"checkbox\" id=\"bargain\" onclick=\"apply()\"><label>\u6298\u6263\u5546\u57ce<\/label>\r\n    <\/div>\r\n<\/body>\r\n<\/html>`\r\n\r\nhelper.pro.dailyGift && helper.pro.dailyGift.free()\r\nhelper.pro.dailyGift = {\r\n    async _execute() {\r\n        var TABLE = __require(\"TableManager\").TABLE, TableName = __require(\"TableName\").TableName\r\n        var o = TABLE.getTableDataById(TableName.ONLINE_REWARD, (UserData.timeReward.times+1))\r\n        if (o && o.time && o.time < ServerTime - UserData.timeReward.rewardTime) {\r\n            o = await send(RequestId.GetTimeReward, {})\r\n            o && o.timeReward && UserData.updateTimeReward(o.timeReward)\r\n        }\r\n\r\n    },\r\n\r\n    async _onTimer() {\r\n        if (!this.busy) try {this.busy = 1, await this._execute()} finally{this.busy = 0}\r\n    },\r\n\r\n    start() {\r\n        this.timer || (this.timer = setInterval(this._onTimer.bind(this), 1000))\r\n    },\r\n\r\n    stop() {\r\n        this.timer && (clearInterval(this.timer), this.timer = 0)\r\n    },\r\n\r\n    init() {\r\n    },\r\n\r\n    free() {\r\n        this.stop()\r\n    }      \r\n}\r\n\r\n\/\/-------------------------------------------------------------------------------------------------\r\n\/\/\u9886\u53d6\u6bcf\u65e5\u94bb\u77f3\r\nhelper.pro.dayDiamond && helper.pro.dayDiamond.free()\r\nhelper.pro.dayDiamond = {\r\n    async _execute() {\r\n        var d = __require(\"TableManager\").TABLE.getTableDataById(\"data_config\", \"5012\")\r\n        var n = d && d.value && d.value.split(\"|\").length\r\n        UserData.GoldVideoCount < n && await send(RequestId.VideoRewardGet, {type: 8, param1: \"\", param2: \"\"})\r\n\r\n        UserData.FreeCoinData.ShareCount < UserData.FreeCoinData.ShareMaxCount && await send(RequestId.FreeCoinShare, {type: 1})\r\n    },   \r\n    \r\n    _onTimer() {\r\n        this._execute()\r\n    },\r\n\r\n    start() {\r\n        this.timer || (this.timer = setInterval(this._onTimer.bind(this), 30000))\r\n    },\r\n\r\n    stop() {\r\n        this.timer && (clearInterval(this.timer), this.timer = 0)\r\n    },\r\n\r\n    dayInit() {\r\n        var t = new Date(ServerTime*1000)\r\n        if (0 === t.getHours() && 0 === t.getMinutes() && 3 > t.getSeconds()) {\r\n            UserData._dayGoldVideoCount = 0\r\n            UserData.FreeCoinData._ShareCount = 0\r\n        }\r\n    },\r\n\r\n    init() {\r\n        \/\/\u6253\u5f00\u9886\u53d6\u6bcf\u65e5\u94bb\u77f3\r\n        __require(\"GameTools\").default.canGetVideoDiamondByMonthlyCard = ()=>!1\r\n\r\n        \/\/\u8df3\u8fc7\u5e7f\u544a\u9886\u53d6\u94bb\u77f3\r\n        __require(\"TableManager\").TABLE.getTableGroup(\"data_config\")[138005].value='0'\r\n\r\n        \/\/\u6bcf\u4eba\u514d\u8d39\u9886\u53d6\u91d1\u5e01\r\n        __require(\"PlatformCommon\").PlatformCommon.canRewardVideoAd = ()=>!0\r\n    },\r\n\r\n    free() {\r\n        this.stop()\r\n    }\r\n}\r\n\r\n\r\nhelper.pro.allianceHelp && helper.pro.allianceHelp.free()\r\nhelper.pro.allianceHelp = {\r\n    async _execute() {\r\n        if (UserData.Alliance.AllianceHelpCount < UserData.Alliance.AllianceHelpMax && null == UserData.Alliance.getSelfHelpData()) {\r\n            var t = __require(\"TableManager\").TABLE.getTableGroup(__require(\"TableName\").TableName.ALLIANCE_HELP), a = []\r\n            for (var i = 10003; i < 10007; i++) UserData.Level >= t[i].unlock_level && a.push(t[i])\r\n            a.sort((d,e)=>UserData.getItemAmount(d.reward_param)-UserData.getItemAmount(e.reward_param)) \r\n            var o = a[0] && await send(RequestId.ALLIANCE_HELP_APPLY, {type: 4, itemId: a[0].id, helpNum: 1})\r\n            o && (\r\n                UserData.Alliance.UpdateAllianceHelpCountAndHonor(o),\r\n                UserData.Alliance.UpdateSelfHelpList(o.selfHelps, !1)\r\n            )\r\n        } \r\n \r\n        var t = UserData.Alliance.getSelfHelpData()\r\n        if (t && t.HelpCount >= t.MaxCount) {\r\n            var o = await send(RequestId.ALLIANCE_HELP_RECEIVE, {type: t.Type, qid: \"0\"})\r\n            UserData.Alliance.DeleteSelfHelpList(t.Type)\r\n        }\r\n    },\r\n\r\n    async _onTimer() {\r\n        if (!this.busy) try {this.busy = 1, await this._execute()} finally{this.busy = 0}\r\n    },\r\n\r\n    start() {\r\n        this.timer || (\r\n            this.timer = setInterval(this._onTimer.bind(this), 1000)\r\n        )\r\n    },\r\n\r\n    stop() {\r\n        this.timer && (\r\n            clearInterval(this.timer), this.timer = 0\r\n        )\r\n    },\r\n\r\n    init() {       \r\n    },\r\n\r\n    free() {\r\n        this.stop()\r\n    }      \r\n}\r\n\r\nhelper.pro.adventureReward && helper.pro.adventureReward.free()\r\nhelper.pro.adventureReward = {\r\n    async _execute() {\r\n        var a = ServerTime - UserData.AdventureData.ManualCollectTime\r\n        var i = 3600 * parseInt(__require(\"GameTools\").default.getDataConfigData(130073))\r\n        var o = a>i && await send(RequestId.Adventure_Reward, {})\r\n        o && o.userIdle && (\r\n            UserData.AdventureData._CollectTime = o.userIdle.collectTime,\r\n            UserData.AdventureData._ManualCollectTime = o.userIdle.manualCollectTime\r\n        )\r\n    },\r\n\r\n    async _onTimer() {\r\n        if (!this.busy) try {this.busy = 1, await this._execute()} finally{this.busy = 0}\r\n    },\r\n\r\n    start() {\r\n        this.timer || (this.timer = setInterval(this._onTimer.bind(this), 1000))\r\n    },\r\n\r\n    stop() {\r\n        this.timer && (clearInterval(this.timer), this.timer = 0)\r\n    },\r\n\r\n    init() {\r\n    },\r\n\r\n    free() {\r\n        this.stop()\r\n    }\r\n}\r\n\r\nhelper.pro.wildernessReward && helper.pro.wildernessReward.free()\r\nhelper.pro.wildernessReward = {\r\n    async _execute() {\r\n        var controller = __require(\"MechaTowerController\").MechaTowerController.getInstance()\r\n        if (0 !== controller.getCurRoomId() && controller.isRewardMax()) {\r\n            var o = await sendPB(__require(\"NRequestId\").NRequestId.MECHA_BATTLE_GET_TIME_REWARD, {header: {}, mechaBattleGetTimeReward: {}})\r\n            o && o.pbAck && 0 === o.pbAck.header.s && o.pbAck.mechaBattleGetTimeReward && controller.setRewardStartTime(o.pbAck.mechaBattleGetTimeReward.rewardStartTime)\r\n        }\r\n    },\r\n\r\n    async _onTimer() {\r\n        if (!this.busy) try {this.busy = 1, await this._execute()} finally{this.busy = 0}\r\n    },\r\n\r\n    start() {\r\n        this.timer || (this.timer = setInterval(this._onTimer.bind(this), 1000))\r\n    },\r\n\r\n    stop() {\r\n        this.timer && (clearInterval(this.timer), this.timer = 0)\r\n    },\r\n\r\n    init() {\r\n    },\r\n\r\n    free() {\r\n        this.stop()\r\n    }    \r\n}\r\n\r\nhelper.pro.isleSweep && helper.pro.isleSweep.free()\r\nhelper.pro.isleSweep = {\r\n    async _execute() {\r\n        if (new Date(ServerTime*1000).getHours() > 12) {\r\n            var o = UserData.IsleData\r\n            var o = (o.State == 1 || o.IsClear) && o.ResetTime > 0 && await send(RequestId.ISLE_RESET, {})\r\n            o && UserData.IsleData.UpdateData(o)\r\n\r\n            o = UserData.IsleData.getCurrentChapter()\r\n            o = o && o.Index == 0 && o.PathList.length == 0 && await send(RequestId.ISLE_SWEEP, {})\r\n            o && UserData.IsleData.UpdateData(o)\r\n        }\r\n    },\r\n\r\n    async _onTimer() {\r\n        if (!this.busy) try {this.busy = 1, await this._execute()} finally{this.busy = 0}\r\n    },\r\n\r\n    start() {\r\n        this.timer || (this.timer = setInterval(this._onTimer.bind(this), 10000))\r\n    },\r\n\r\n    stop() {\r\n        this.timer && (clearInterval(this.timer), this.timer = 0)\r\n    },\r\n\r\n    init() {\r\n    },\r\n\r\n    free() {\r\n        this.stop()\r\n    }    \r\n}\r\n\r\n\/\/-------------------------------------------------------------------------------------------------\r\n\/\/\u60ca\u559c\u6298\u6263\u5546\u57ce(\u6253\u6298\u5238\u780d\u4e00\u5200)\r\nhelper.pro.bargainShop && helper.pro.bargainShop.free()\r\nhelper.pro.bargainShop = {\r\n    \/\/\u63a8\u9001\u804a\u5929\u4e8b\u4ef6\r\n    async _onChatPush(e) {\r\n        if (e.uid != UserData.UID && e.llm) {\r\n            var o = JSON.parse(e.llm)\r\n            o && o.bargain_aid && o.bargain_item_id && UserData.getItemAmount(3953010) > 0 && (\r\n                console.log(\"bargain_data:\", o),\r\n                o = await send(RequestId.BARGAINSHOP_BARGAIN, {aid: Number(o.bargain_aid), item_id: Number(o.bargain_item_id), uid: Number(e.uid)}),\r\n                console.log(\"bargain_result:\", o)\r\n            )\r\n        }  \r\n    },          \r\n\r\n    start() {\r\n        this.running || (this.running = !0, __require(\"EventCenter\").EVENT.on(\"newChatPush\", this._onChatPush))\r\n    },\r\n\r\n    stop() {\r\n        this.running && (this.running = !1, __require(\"EventCenter\").EVENT.off(\"newChatPush\", this._onChatPush))\r\n    },\r\n\r\n    init() {\r\n    },\r\n\r\n    free() {\r\n        this.stop()\r\n    }\r\n}\r\n\r\n\r\nhelper.pro.enable()\r\n\r\n\r\nconsole.log(\"Init ultimate functions succeed.\")\r\n"
+//-------------------------------------------------------------------------------------------------
+//查找玩家坐标
+helper.pro.findPlayer={
+    option: {
+        whole: !1,
+        tag: !1,
+        real: !1
+    },
+    a_tag: null,
+    player: null,
+    point: null,
+    fields: [],
+    blocks: [],
+
+    goto(e) {
+        var f = __require("WorldMapTools")
+          , k = __require("NWorldMapData").default.instance.serverData.currentServerId, k = k > 0 ? k : UserData.ServerId 
+          , r = __require("NWorldMapData").default.instance.serverData.currentSubMap
+
+        e = e.innerText.split(',')      
+        e.length == 2 && (f.default.goToWorldMapByPos({x: e[0], y: e[1], s: k, subMap: r}), this.close())
+    },
+    
+    async exec() {
+        this.searching ? this.stopping = !0 : await this._find()
+        this._render()
+    },
+
+    async more() {
+        this.fields = [], this.searching2 = !0, this._render()
+        await this._searchFields(this.point.pid)
+        this._render()
+    },
+
+    async _find() {
+        var doc = helper.dialog.iframe.contentWindow.document
+        this.option.whole = doc.getElementById('whole').checked
+        this.option.tag = doc.getElementById('tag').checked
+        this.player = doc.getElementById('player').value
+        this.a_tag = doc.getElementById('a_tag').value
+        if (this.player) {
+            this.point = null,
+            this.fields = [],
+            this.searching = !0,
+            this.stopping = !1,
+            this._render(),
+            await this._searchCity()
+        }
+    },
+
+    async _searchCity() {
+
+        this.option.real = helper.dialog.iframe.contentWindow.document.getElementById('real').checked
+        for (var i = 0; !this.stopping && !this.point && i < this.map.block_num; ++i) {  // 地图划分为block_num块,每块坐标范围86*156,部分重叠(每次请求服务器返回90*160)  普通地图坐标范围:[x:0-816, y:0-952]
+            var o = await this._getBlock(i) 
+            o && o.pointList && o.pointList.forEach(p=>{
+                var username = p.p && (!this.option.tag || this.a_tag == p.p.a_tag) && p.p.playerInfo && JSON.parse(p.p.playerInfo).username;
+                (username && (this.option.whole ? username==this.player : username.includes(this.player)) || p.p && p.p.pid == this.player) && (
+                    this.point = {x:p.x, y:p.y, k:p.k, username:username, pid:p.p.pid, data:p}
+                )
+            })
+        }
+        this.searching = !1, this.stopping = !1;  
+    },
+
+    async _searchFields(pid) 
+    {
+        this.option.real = helper.dialog.iframe.contentWindow.document.getElementById('real').checked
+        for(var i = 0; i < this.map.block_num; ++i) {
+            var o = await this._getBlock(i)
+            o && o.pointList && o.pointList.forEach(p=>(p.r && p.r.ownerId == pid || p.b && p.b.pid == pid) &&       // r:{pointType=4:普通田，=38:联盟田} b:{pointType=24:机械田} p:{pointType=1:基地}
+                !this.fields.find(e=>e.x==p.x && e.y==p.y) && this.fields.push({x:p.x, y:p.y, k:p.k, type:p.pointType, data:p})
+            )
+        }
+        this.searching2 = !1
+    },
+
+    //查找一个盟的所有玩家ID名字及坐标
+    async findRebels(tag) 
+    {
+        this.option.real  = !1
+        for(var rebels = [], i=0; i<this.map.block_num; ++i) {
+            var o = await this._getBlock(i)
+            o && o.pointList && o.pointList.forEach(e=>e && e.p && tag == e.p.a_tag && !rebels.find(t=>t.pid==e.p.pid) && rebels.push({username: JSON.parse(e.p.playerInfo).username, pid:e.p.pid, x:e.x, y:e.y, k:e.k}));
+        }
+        rebels.forEach(e=>console.log("k:", e.k, "  x:", e.x.toString().padEnd(3), "  y:", e.y.toString().padEnd(3), "  pid:", e.pid, "  name:", e.username))
+    },
+
+    async _getBlock(i) {
+        (this.option.real || !this.blocks[i] || ServerTime - this.blocks[i].time > 300) && (this.blocks[i] = {data: await this._getServer(i), time: ServerTime})
+        return this.blocks[i].data
+    },
+
+    async _getServer(i) {
+        var c = i % this.map.cols, r = Math.floor(i / this.map.cols)
+        var x = Math.min(Math.floor((c+0.5)*this.map.bw)+1, this.map.width-16)   //even
+        var y = Math.min(Math.floor((r+0.5)*this.map.bh), this.map.height-16)
+        var k = __require("NWorldMapData").default.instance.serverData.currentServerId, k = k > 0 ? k : UserData.ServerId  
+        return send(RequestId.GET_WORLD_INFO, {x: x, y: y, k: k, rid: 0, marchInfo: !1, viewLevel: 1})
+    },
+    
+    _render() {
+        function timestr(t) {var a=new Date(t*1000); return (a.getMonth()+1)+'-'+a.getDate()+" "+a.getHours()+":"+a.getMinutes().toString().padStart(2,'0')+":"+a.getSeconds().toString().padStart(2,'0')}
+
+        var iframe = helper.dialog.iframe
+        if (iframe && iframe.name == "find-player") {
+            var doc = iframe.contentWindow.document
+            var e, html
+            
+            e = doc.getElementById("player")
+            e.value = this.player ? this.player : ""
+            e.readOnly = this.searching
+
+            e =doc.getElementsByTagName("button")[0]
+            e.innerText = this.searching ? "停止查找" : "查找"
+
+            e = doc.getElementById("whole")
+            e.checked = this.option.whole
+            e.disabled = this.searching
+
+            e = doc.getElementById("tag")
+            e.checked = this.option.tag
+            e.disabled = this.searching
+
+            e = doc.getElementById("a_tag")
+            e.type = this.option.tag ? "text" : "hidden"
+            e.value = this.a_tag
+            e.readOnly = this.searching
+
+            e = doc.getElementById("real")
+//            e.checked = this.option.real
+            e.disabled = this.searching || this.searching2
+            
+            e = doc.getElementById("point").getElementsByTagName("label")[0]
+            e.innerText = this.point ? "玩家"+this.point.username+"(ID:"+this.point.pid+")坐标:" : 
+                          this.stopping ? "停止查找玩家"+this.player+"..." : 
+                          this.searching ? "正在查找玩家"+this.player+"..." : 
+                          this.player ? "未查找到玩家"+this.player+"的位置" : "新的查找"
+
+            e = doc.getElementById("point").getElementsByTagName("a")[0]
+            e.innerText = this.point ? this.point.x + "," + this.point.y : ""
+            e.style.visibility = this.point ? "visible" : "hidden"
+
+            e = doc.getElementById("point").getElementsByTagName("a")[1]
+            e.style.visibility = this.point ? "visible" : "hidden"
+
+            e = doc.getElementById('shield')
+            e.innerText = this.point && this.point.data.p.shieldTime && this.point.data.p.shieldTime > ServerTime ? "开盾时间:"+timestr(this.point.data.p.shieldTime) : ""
+            e.style.visibility = this.point && this.point.data.p.shieldTime && this.point.data.p.shieldTime > ServerTime ? "visible" : "hidden"
+  
+            html = this.searching2 ? "<label>正在查找...<\/label>" : "<label>其他坐标:<\/label>"
+            this.fields.forEach(e=>html += '<a href="javascript:void(0)" onclick="parent.helper.pro.findPlayer.goto(this)">' + e.x + ',' + e.y + '<\/a>　')
+            e = doc.getElementById("field")
+            e.innerHTML = html
+        }
+    },
+
+    init() {
+        var g = __require("NWorldMapCommon").allMapInfos[__require("NWorldMapCoreBiz").default.mapType]
+        var w = g.subMap ? g.subMap.get(0).width * 2 : g.cols * 2, h = g.subMap ? g.subMap.get(0).height : g.rows, c = Math.ceil(w / 86), r = Math.ceil(h / 156)
+        this.map={width:w, height:h, bw:86, bh:156, cols:c, rows:r, block_num:c*r}
+    },
+
+    open() {
+        helper.dialog.open({name:"find-player", width:550, height:160, html:this.html, onclose:this.onclose.bind(this)});
+        this._render(); 
+    },
+
+    close() {
+        helper.dialog.close();
+    },
+
+    onclose() {
+        (this.stopping || !this.searching) && (this.searching=!1, this.stopping = !1);
+    }
 }
+
+helper.pro.findPlayer.html = String.raw
+`<html charset="UTF-8">
+<head>
+    <style>
+        body{line-height:22px; vertical-align:top; font-size:14px; font-family:"Helvetica","Lucida Console","Microsoft soft";}
+        h3{display:block; margin-top:12px; margin-bottom:4px; text-align:center; width:100%;}
+        label{display:inline-block;margin-left:4px; margin-right:4px; margin-top:4px;}
+        input{color:#333;border:1px solid #999; border-radius:3px; outline-style:none; margin-top:8px; margin-bottom:4px; padding:2px;height:20px;}
+        input::-webkit-input-placeholder{color: #aaa;}
+        input[type="checkbox"]{margin-right:1px; vertical-align:top; margin-top:8px; width:14px; height:14px;}
+        #player{margin-left:4px; width:420px;} #a_tag{margin-top:0px; width:60px}
+        #option{height:26px;}
+        #result{height:56px; overflow:auto;}
+        button{border:1px solid #999; border-radius:3px; outline-style:none; text-align:center; margin-left:8px; width:90px; height:21px;}
+        button:hover{background-color:#ccc;} button:focus{background-color:#ccc;} button:active{transform: translateY(1px);}
+    <\/style>
+    <script>
+        function $(a) {return a && '#'==a[0] && document.getElementById(a.substring(1))}
+    <\/script>
+<\/head>
+<body>
+    <h3>查找玩家坐标<\/h3>
+    <div>
+        <input type="text" id="player" placeholder="请输入玩家名字或ID">
+        <button onclick="parent.helper.pro.findPlayer.exec()">查找<\/button><br>
+    <\/div>
+    <div id="option">
+        <input type="checkbox" id="whole"><label>全称<\/label>
+        <input type="checkbox" id="tag" onclick="$('#a_tag').type=this.checked?'text':'hidden';"><label>联盟<\/label>
+        <input type="hidden" id="a_tag" placeholder="联盟代码">
+        <input type="checkbox" id="real" onclick="$('#tips').style.visibility=this.checked ? 'visible':'hidden'"><label>实时<\/label><label id="tips" style="color:red; visibility:hidden">频繁使用会被暂停登录，谨慎使用。<\/label>
+    <\/div>
+    <div id="result">
+        <div id="point"><label>新的查找<\/label><a href="javascript:void(0);" onclick="parent.helper.pro.findPlayer.goto(this)"><\/a><label id="shield"><\/label>　<a href="javascript:void(0);" onclick="parent.helper.pro.findPlayer.more()">找田<\/a><\/div>
+        <div id="field"><label>资源坐标:<\/label><\/div>
+    <\/div>
+<\/body>
+<\/html>`
+
+
+//-------------------------------------------------------------------------------------------------
+//攻击黑暗敌军
+helper.pro.attackMonster && helper.pro.attackMonster.free()
+helper.pro.attackMonster = {
+    /*
+    config: [
+        {type:43, pt:1, active:!0, name:"Lujun", text:"黑暗陆军", relative: 1, min:-13, max:6, ll:1, lh:86, step:1},
+        {type:42, pt:1, active:!0, name:"Haijun", text:"黑暗海军", relative: 1, min:-13, max:6, ll:1, lh:86, step:1},
+        {type:41, pt:1, active:!0, name:"Kongjun", text:"黑暗空军", relative: 1, min:-13, max:6, ll:1, lh:86, step:1},
+        {type:61, pt:1, active:!0, name:"Thor-1", text:"黑雷神陆军", relative: 1, min:-13, max:6, ll:80, lh:106, step:1},
+        {type:9031, pt:1, active:!1, name:"Mecha", text:"黑暗机甲", relative: 0, min:1, max:5, ll:1, lh:5, step:1}
+    ],
+    *\/
+    setting: {
+        group:[
+            {id:43, selected:1, min:0, max:0},
+            {id:42, selected:1, min:0, max:0},
+            {id:41, selected:1, min:0, max:0},
+            {id:61, selected:1, min:0, max:0}
+            //四国
+            //{id:9023, selected:1, min:0, max:0},
+            //{id:9022, selected:1, min:0, max:0},
+            //{id:9021, selected:1, min:0, max:0},
+            //{id:9031, selected:1, min:0, max:0}
+        ], 
+        preset:1, 
+        count:1, 
+        interval:1, 
+        precheck:1,
+        energy:0,
+        quintic:0 
+    },
+
+    state: {counter:0, lasttime:0, running:!1},
+
+    get config() {
+        var m = __require("WorldMonsterModel").WorldMonsterModel.Instance
+        var u = __require("WorldMapMonsterSearchComponentNew").default
+        var v = __require("KVKTools")
+        var l = __require("LocalManager")
+        var y = __require("TableManager")
+        var N = __require("TableName")
+        var o = new u, a = [], cmin, cmax, text
+
+        //备份上下文
+//        var b = {_type: m._type, selectMonsterId: m.selectMonsterId}
+        var b = Object.assign({}, m)
+
+        //怪物及等级
+        o.init(), m._type = 1
+        m.monsterList.forEach(e=>{
+            var i = y.TABLE.getTableDataById(N.TableName.MONSTER_GROUP, String(e.id)).search_show_kvk
+            if (v.default.judgeMonsterStar(i)) {
+                cmin = 1
+                cmax = 5
+            }
+            else {
+                m.selectMonsterId = e.id
+                o.updateMonsterLevelLimit()
+                cmin = Math.max(m.monsterSearchMinLevel, 1)
+                cmax = m.monsterSearchMaxLevel
+            }
+            text = l.LOCAL.getText(e.name)
+            a.push({id: e.id, name: e.name, text: text, order: e.order, cmin: cmin, cmax: cmax}) 
+        })
+
+        //还原上下文
+//        m._type = b._type
+//        m.selectMonsterId = b.selectMonsterId
+        Object.assign(m, b)
+        
+        //按照order排序
+        a.sort((e,t)=>t.order-e.order)
+        return a
+    },
+
+    _march(ti) {
+        var context = helper.battle.backup()
+        try {
+            var wme = new(__require("NWorldMapEnemy").default)
+            Object.assign(wme, {tileInfo:ti}).onBtnClickAtack(null, this.setting.quintic.toString())  //0-单次攻击 1-连续攻击
+            return helper.battle.setup(this.setting.preset, 9999) && helper.battle.march()            //设置英雄和士兵并出征
+        }
+        finally {
+            helper.battle.restore(context);
+        }
+    },
+
+    async _attack(p) {
+        var wmc = __require("NWorldMapController").default.instance
+        var ti = (wmc.updateTileInfo(p, 0), wmc.getTileInfoByCoord(p.x, p.y, p.k, 0));
+        if (ti && await helper.battle.mutex.acquire(2000) ) {
+            try {
+                return await this._march(ti);        //出征
+            }
+            finally {
+                helper.battle.mutex.release();
+            }
+        }
+    },
+
+    \/*
+      黑暗陆军    groupType=43, pointType=1
+      黑暗海军    groupType=42, pointType=1
+      黑暗空军    groupType=41, pointType=1
+      黑雷神陆军  groupType=61, pointType=1
+      黑暗机甲    groupType=9031, pointType=1
+    *\/ 
+    _search(task) {
+        return send(RequestId.WORLD_SEARCH_MONSTER, {
+                    minLevel: task.min,
+                    maxLevel: task.max,
+                    groupType: task.id,
+                    pointType: 1
+               })
+    },
+
+    //补充体力
+    _charge() {
+        if (this.setting.energy) {
+            for(var e of UserData.getItemList()) {
+                if (6 === e.Data.type && e.Amount > 0) {
+                    return send(RequestId.ITEM_USE, {amount:1, itemid:e.ItemId});
+                }
+            }
+        }
+        return 0
+    },
+
+    //体力检查  
+    async _energy(task) {
+        //计算任务体力
+        var y = __require("TableManager").TABLE.getTableDataById("monster_group", task.id.toString())
+        var t = __require("FWSTool").Obj.getPropertyByNames(y, 0, "cost_energy")
+        var s = UserData.getEnergy(1).Point
+        if (1 == this.setting.quintic) {
+            var n = __require("GameTools").default.getDataConfigData(930203)
+            var b = __require("GameTools").default.getDataConfigData(930202)
+            t = t * Number(b) * Number(n)
+        }
+        return (t <= s ? 1 : await this._charge() ? 2 : 0)
+    },
+
+    //检查编队
+    _precheck() {
+        //单兵检查(含机甲)
+        if (0 == this.setting.preset || 9 == this.setting.preset) {
+            var one = __require("GameTools").default.getAttackerMyArmys().sort((t, e)=>{return t.ArmyData.power - e.ArmyData.power})[0];
+            if (!one || (one.battleMechaData && !helper.battle.mechaOk(one.battleMechaData.mechaId)))
+                return 0
+        }
+        //预设编队检查
+        if (0 < this.setting.preset && this.setting.preset < 9 && this.setting.precheck) { 
+            var march = UserData.PresetMarchData.getPreMarchByIndex(this.setting.preset-1)
+            if (!march) return 0  
+
+            //检查英雄
+            var heros = __require("HeroController").HeroController.getInstance().getHaveHeroCanMarchList()
+            for (var i = 0; i < march.HeroIds.length; ++i) if (!heros.find((e)=>{return e._id == march.HeroIds[i]})) return 0
+
+            //检查士兵
+            var armys = __require("GameTools").default.getAttackerMyArmys()
+            for (var group = {}, i = 0; i < armys.length; ++i) {var n=armys[i].ArmyData.id; group[n] = (group[n] ? group[n] : 0) + 1}
+            for (var e of march.Armys) {
+                if (e && e.ArmyId && e.isMecha && !helper.battle.mechaOk(e.mechaId)) return 0
+                if (e && e.ArmyId && !e.isMecha && (!group[e.ArmyId] || (group[e.ArmyId] -= e.Num)<0)) return 0
+            }
+        }
+        return 1
+    },
+
+    async _execute(task) {
+        //行军队列、预设英雄士兵
+        if (task && UserData.myMarchNum < UserData.myMarchNumMAX && this._precheck()) {
+            //检查体力
+            switch (await this._energy(task)) {
+                case 2:
+                    //自动补充体力,重新执行任务 
+                    return this._execute(task)
+                case 1:
+                    //体力检查通过,查找并攻击 
+                    var o = await this._search(task)
+                    o = o && o.point && await this._attack(o.point)
+                    o && o.marchInfo && (this.state.counter++, this.state.lasttime=o.marchInfo.marchStartTime, this._update())
+                    o && o.marchInfo || await sleep(5000)
+                case 0:
+            };
+        }
+    },
+
+    _newTask() {       
+        for (var a = [], s, i = 0; i < this.config.length; ++i) {
+            s = this.setting.group.find(e => e.id == this.config[i].id)
+            s && s.selected && s.min && s.max && a.push(s)
+        }
+        return a[Math.floor(Math.random()*a.length)]
+    },
+
+    async _onTimer() {
+        if (this.state.counter < this.setting.count && !this.busy) {
+            try {this.busy = 1, await this._execute(this._newTask())} finally{this.busy = 0}
+        }        
+    },
+
+    _start() {
+        this.timer || (this.timer = setInterval(this._onTimer.bind(this), this.setting.interval*1000))
+    },
+
+    _stop() {
+        this.timer && (clearInterval(this.timer), this.timer = 0)
+    },
+    
+    _update() {
+        this._save()
+        this._render()
+    },
+
+    _save() {
+        setItem("attack-monster", JSON.stringify({setting:this.setting, state:this.state}))        
+    },
+
+    async _load() {
+        var o = await getItem("attack-monster")
+        o && (o = JSON.parse(o)) && (this.setting = o.setting, this.state = o.state)
+    },
+
+    _render() {
+        var iframe = helper.dialog.iframe;
+        if (iframe && iframe.name == "attack-monster") {
+            var e = {param:{}, group:[], state:{}};
+            e.param.preset = this.setting.preset,
+            e.param.count = this.setting.count,
+            e.param.interval = this.setting.interval,
+            e.param.precheck = this.setting.precheck,
+            e.param.energy = this.setting.energy,
+            e.param.quintic = this.setting.quintic,
+            e.state.counter = this.state.counter,
+            e.state.running = this.state.running;
+
+            for(var c of this.config) {
+                var s = this.setting.group.find(e=>e.id == c.id)
+                var t = {id:c.id, text: c.text, cmin: c.cmin, cmax: c.cmax, selected: s ? s.selected : !1, min: s ? s.min: c.cmin, max: s ? s.max : c.cmax}
+                e.group.push(t)
+            }
+            iframe.contentWindow.render(e);
+        }
+    },
+
+    start() {
+        if (!this.state.running && this.setting.count) {
+            this.state.running = !0, this.state.counter = 0, 
+            this._start(),
+            this._onTimer(),
+            this._update();
+        }
+    },
+
+    stop() {
+        if (this.state.running) {
+            this.state.running = !1,
+            this._stop(), 
+            this._update()
+        }
+    },
+
+    apply(s) {
+        //参数修正
+        s.preset = s.preset >= 1 && s.preset <= 9 ? s.preset : 9;
+        s.count = s.count > 0 ? s.count : 0;
+        s.interval = s.interval >= 0 ? s.interval : 1;
+        s.group.forEach(e=>{
+            if (e.min > e.max) {
+                var n = e.max
+                e.max = e.min, e.min = n
+            }          
+        })
+
+        //参数更新
+        var o = this.setting.interval; 
+        this.setting = s;
+
+        //重置定时器
+        this.setting.interval != o && this.timer && (this._stop(), this._start()) 
+        this._update();
+    },
+
+    async init() {
+        await this._load()
+        this.state.running && this._start()
+    },
+
+    free() {
+        this._stop()
+    },
+
+    open() {
+        helper.dialog.open({name:"attack-monster", width:515, height:195+this.config.length*30, html:this.html});
+        this._render();
+    }
+}
+
+helper.pro.attackMonster.html= String.raw
+`<html charset="UTF-8">
+<head>
+<style>
+    body{line-height:30px; vertical-align:top; font-size:14px; font-family:"Helvetica","Lucida Console","Microsoft soft";}
+    h3{display:block; margin-top:12px; margin-bottom:8px; text-align:center; width:100%}
+    label{margin-left:2px; margin-right:2px;}
+    label.caption{display:inline-block; width:80px;}
+    span{margin-left:20px; margin-right:0px;}
+    input{color:#333;border:1px solid #999; border-radius:3px; outline-style:none; margin-right:12px; padding-top:2px; height:20px;}
+    input[type="checkbox"]{margin-right:1px; vertical-align:top; margin-top:8px; width:14px; height:14px;}
+    select{color:#333; border:1px solid #999; border-radius:4px; outline-style:none; margin-left:0px; padding-top:1px; height:20px; }
+    button{border:1px solid #999; border-radius:3px; outline-style:none; text-align:center; margin-top:0px; width:60px; height:22px;}
+    button:hover{background-color:#ccc;} button:focus{background-color:#ccc;} button:active{transform: translateY(1px);}
+    input::-webkit-input-placeholder{color: #aaa;}
+    #counter{display:inline-block; color:green; width:130px;}
+    #state{margin-left:10px; margin-top:8px; text-align:center; height:20px}
+    #action{margin-left:145px; margin-top:8px; text-align:center; width:80px;}
+    div.panel{border:1px solid silver; border-radius:6px; margin:8px; padding:4px; padding-left:12px; box-shadow: 3px 3px 6px gray;}
+    .combo-box{display:inline-block; position:relative;} .combo-list{width:70px;} .combo-edit{position:absolute; padding-top:1px; width:50px; height:18px; left:1px; top:1px; border:0px;}
+<\/style>
+<\/script>      
+<script>
+    function $(a) {
+        return a && '#'==a[0] && document.getElementById(a.substring(1))
+    }
+
+    function editchange(edit) {
+        edit.setAttribute("value", Number(edit.value.replace('次','').replace('秒',''))); 
+        apply();   
+    }
+
+    function listchange(list) {
+        var edit = list.parentNode.children["edit"];
+        var i = list.selectedIndex;
+        edit.value = list.options[i].innerText;
+        edit.setAttribute("value", list.options[i].value);
+        list.selectedIndex = 0;
+        apply();
+    }
+
+    function apply() {
+        var e = {group:[]};
+        e.preset = Number($("#preset").value);
+        e.count = Number($("#count").children["edit"].getAttribute("value"));
+        e.interval = Number($("#interval").children["edit"].getAttribute("value"));
+        e.precheck = $("#precheck").checked; 
+        e.energy = $("#energy").checked; 
+        e.quintic = Number($("#quintic").checked);
+        
+        for(var div of $("#group").children) {
+            var g = {};
+            g.id = Number(div.id.substring(5)),
+            g.selected = div.children["selected"].checked,
+            g.min = Number(div.children["min"].value),
+            g.max = Number(div.children["max"].value),
+            e.group.push(g) 
+        }
+
+        parent.helper.pro.attackMonster.apply(e)
+    }
+
+    function _html(g) {
+        for (var options = "", i=g.cmin; i<=g.cmax; i++) options += '<option value=' + i + '>' + i + '级<\/option>' 
+        return '<div id=type-' + g.id + '>' +
+               '    <input type="checkbox" name="selected" onclick="apply()"><label class="caption">' + g.text + '<\/label>' + 
+               '    <span><\/span><label>最低等级：<\/label>' + 
+               '    <select name="min" class="combo-list" onchange="apply()">' + options + '<\/select>' + 
+               '    <span><\/span><label>最高等级：<\/label>' + 
+               '    <select name="max" class="combo-list" onchange="apply()">' + options + '<\/select>' +
+               '<\/div>'
+    }
+
+    function render(e) {
+        $("#preset").value = e.param.preset;
+        $("#count").children["edit"].value = (99999 == e.param.count) ? '无限次' : e.param.count + '次'
+        $("#count").children["edit"].setAttribute("value",e.param.count)
+        $("#interval").children["edit"].value = e.param.interval + '秒'
+        $("#interval").children["edit"].setAttribute("value", e.param.interval)
+        $("#precheck").checked = e.param.precheck
+        $("#energy").checked = e.param.energy
+        $("#quintic").checked = e.param.quintic
+        $("#counter").innerText = e.state.counter ? '已攻击' + e.state.counter +'次' : ''
+        $("#counter").style.color = e.state.counter >= e.param.count ? "green" : e.state.running ? "purple" : "black"
+        $("#state").innerText = e.state.running ? "运行中" : "未运行"
+        $("#state").style.backgroundColor = e.state.running ? "greenyellow" : "#aaa"
+        $("#state").style.borderRadius = "2px"
+        $("#action").innerText = e.state.running ? "停止" : "启动"
+
+        $("#group").innerHTML = "";
+        for(var g of e.group) $("#group").innerHTML += _html(g)
+        for(g of e.group) {
+            $("#type-"+g.id).children["selected"].checked= g.selected
+            $("#type-"+g.id).children["min"].value = g.min
+            $("#type-"+g.id).children["max"].value = g.max
+        }
+
+        $("#group").style.height = 30 * e.group.length + 4
+    }
+
+    function action() {
+        var o = parent.helper.pro.attackMonster
+        o.state.running ? o.stop() : o.start()
+    }
+<\/script>
+<\/head>
+<body>
+    <h3>攻击黑暗敌军<\/h3>
+    <div class="panel">
+        <label>编队：<\/label>
+        <select id="preset" class="combo-list" onchange="apply()">
+            <option value="1">编队1<\/option>
+            <option value="2">编队2<\/option>
+            <option value="3">编队3<\/option>
+            <option value="4">编队4<\/option>
+            <option value="5">编队5<\/option>
+            <option value="6">编队6<\/option>
+            <option value="7">编队7<\/option>
+            <option value="8">编队8<\/option>
+            <option value="9">自动<\/option>
+        <\/select>
+        <span><\/span><span><\/span><label>间隔：<\/label>
+        <div id="interval" class="combo-box">
+            <select name="list" class="combo-list" onchange="listchange(this)">
+                <option style="display:none"><\/option>
+                <option value="1">1秒<\/option>
+                <option value="30">30秒<\/option>
+                <option value="60">60秒<\/option>
+                <option value="300">300秒<\/option>
+                <option value="600">600秒<\/option>
+            <\/select>
+            <input name="edit" class="combo-edit" onchange="editchange(this)">
+        <\/div>
+        <span><\/span><span><\/span><label>次数：<\/label>
+        <div id="count" class="combo-box">
+            <select name="list" class="combo-list" onchange="listchange(this)">
+                <option style="display:none"><\/option>
+                <option value="1">1次<\/option>
+                <option value="5">5次<\/option>
+                <option value="10">10次<\/option>
+                <option value="50">50次<\/option>
+                <option value="99999">无限次<\/option>
+            <\/select>
+            <input name="edit" class="combo-edit" onchange="editchange(this)">
+        <\/div>
+        <br>
+        <input type="checkbox" id="precheck" onclick="apply()"><label>检查行军<\/label>
+        <span><\/span>
+        <input type="checkbox" id="energy" onclick="apply()"><label>补充体力<\/label>
+        <span><\/span>
+        <input type="checkbox" id="quintic" onclick="apply()"><label>连续攻击<\/label>
+        <span><\/span>
+        <span id="counter">已攻击怪物99999次<\/span>
+    <\/div>
+    <div id="group" class="panel">
+        <div>
+            <input type="checkbox" name="selected" onclick="apply()"><label class="caption">黑暗陆军<\/label>
+            <span><\/span><label>最低等级：<\/label>
+            <select name="min" class="combo-list" onchange="apply()">
+                <option value="67">67级<\/option>
+            <\/select>
+            <span><\/span><label>最高等级：<\/label>
+            <select name="max" class="combo-list" onchange="apply()">
+                <option value="67">67级<\/option>
+            <\/select>
+        <\/div>
+    <\/div>
+    <span id="state">未运行<\/span>
+    <button id="action" onclick="action()">启动<\/button>
+<\/body>
+<\/html>`
+
+
+//-------------------------------------------------------------------------------------------------
+//自动发起集结
+helper.pro.createAssembly && helper.pro.createAssembly.free()
+helper.pro.createAssembly = {
+    setting: {
+        group:[
+            {id: 44, selected: 1, min: 10, max: 10},
+            {id: 9100, selected: 0, min: 5, max: 5},
+            {id: 6, selected: 0, min: 10, max: 10}
+        ], 
+
+\/*  四国
+    config: [
+        {type:9024, pt:3, active:!0, name:"Hammer", text:"战锤-4000", relative: 1, min:-70, max:0, step:10},
+        {type:9032, pt:3, active:!0, name:"Pioneer", text:"黑暗精卫", relative: 0, min:1, max:5, step:1},
+        {type:6, pt:4, active:!0, name:"Rattat", text:"爱心砰砰", relative: 1, min:-70, max:0, step:10}
+    ],
+
+    setting: {
+        group:[
+            {type:9024, selected:1, min:0, max:0},
+            {type:9032, selected:0, min:5, max:5},
+            {type:6, selected:0, min:0, max:0}
+        ], 
+*\/
+        preset:1, 
+        count:1, 
+        interval:1, 
+        precheck:1,
+        energy:0
+    },
+
+    state:{counter:0, lasttime:0, running:!1},   
+
+    get config() {
+        var m = __require("WorldMonsterModel").WorldMonsterModel.Instance
+        var D = __require("ActivityController").ActivityController.Instance
+        var C = __require("WorldMapMonsterSearchComponentNew").default
+        var u = __require("GameTools")
+        var v = __require("KVKTools").default
+        var l = __require("LocalManager")
+        var y = __require("TableManager")
+        var N = __require("TableName")
+        var a = [], o = new C, cmin, cmax, step, text, type
+    
+        //备份上下文
+        var b = Object.assign({}, m)
+
+        m.resetData()
+        o._thorScienceMonsterBuff = o.getThorScienceMonsterBuff()
+        o.init()
+
+        //添加集结配置
+        m.assembleMonsterList.forEach(e=>{
+            var i = y.TABLE.getTableDataById("monster_group", String(e.id)).search_show_kvk   
+            if (v.judgeMonsterStar(i)) {   //黑暗精卫
+                cmin = 1
+                cmax = 5
+                step = 1
+                type = 3
+            }
+            else if (e.id == u.default.getDataConfigData(941304)) {   //俱星-4000
+                o.setThorScienceMonsterSearchLevel()
+                cmin = o._minLevel
+                cmax = o._maxLevel
+                mtype = 9
+                step = 1
+                type = 9
+            }
+            else {   //战锤-4000
+                cmin = 10
+                cmax = parseInt(UserData.Level \/ 10) * 10
+                step = 10
+                type = 3
+            }
+            text = l.LOCAL.getText(e.name)
+            a.push({id: e.id, type: type, name: e.name, text: text, order: e.order, cmin: cmin, cmax: cmax, step: step}) 
+        })
+
+        //爱心砰砰活动
+        if (D.getLimitHammerBossExchangeActivityId("4", !0) > 0) {
+            var s = y.TABLE.getTableDataById(N.TableName.MONSTER_GROUP, "6")
+            cmin = 10
+            cmax = parseInt(UserData.Level \/ 10) * 10
+            step = 10
+            text = l.LOCAL.getText(s.name)
+            type = 4
+            a.push({id: s.id, type: type, name: s.name, text: text, order: s.order, cmin: cmin, cmax: cmax, step: step})
+        }
+
+        //还原上下文
+        Object.assign(m, b)
+        return a
+    },
+    
+    _march(ti) {
+        var context = helper.battle.backup()
+        try {
+            //集结, 出征
+            var wma = new(__require("NWorldMapAssemblyEnemyComponent").default)
+            Object.assign(wma, {tileInfo:ti}).StartAssembly(null, 0)
+            return helper.battle.setup(this.setting.preset, 9999) && helper.battle.march()   
+        }
+        finally {
+            helper.battle.restore(context)
+        }
+    },
+
+    async _assembly(p) {
+        var wmc = __require("NWorldMapController").default.instance
+        var ti = (wmc.updateTileInfo(p, 0), wmc.getTileInfoByCoord(p.x, p.y, p.k, 0));
+        if (ti && await helper.battle.mutex.acquire(2000) ) {
+            try {
+                //集结, 出征
+                return await this._march(ti)
+            }
+            finally {
+                helper.battle.mutex.release()    
+            }
+        }
+    },
+
+    \/*
+      type: 6-爱心砰砰
+           44-战锤-4000
+         9100-俱星-4000
+             
+    *\/ 
+    _search(task) {
+        return send(RequestId.WORLD_SEARCH_MONSTER, {
+                        minLevel: task.min,
+                        maxLevel: task.max,
+                        groupType: task.id,
+                        pointType: task.type})
+    },
+
+    //补充体力
+    _charge() {
+        if (this.setting.energy) {
+            for(var e of UserData.getItemList()) {
+                if (6 === e.Data.type && e.Amount > 0) {
+                    return send(RequestId.ITEM_USE, {amount:1, itemid:e.ItemId});
+                }
+            }
+        }
+        return 0 
+    },
+
+    //体力检查  
+    async _energy(task) {
+        //计算任务体力
+        var y = __require("TableManager").TABLE.getTableDataById("monster_group", task.id.toString())
+          , t = __require("FWSTool").Obj.getPropertyByNames(y, 0, "cost_energy")
+          , s = UserData.getEnergy(1).Point;
+        return (t <= s ? 1 : await this._charge() ? 2 : 0)
+    },
+
+    //编队检查
+    _precheck() {
+        //单兵检查(含机甲)
+        if (0 == this.setting.preset || 9 == this.setting.preset) {
+            var one = __require("GameTools").default.getAttackerMyArmys().sort((t, e)=>{return t.ArmyData.power - e.ArmyData.power})[0];
+            if (!one || (one.battleMechaData && !helper.battle.mechaOk(one.battleMechaData.mechaId)))
+                return 0
+        }
+        //预设编队
+        if (0 < this.setting.preset && this.setting.preset < 9 && this.setting.precheck) { 
+            var march = UserData.PresetMarchData.getPreMarchByIndex(this.setting.preset-1)
+            if (!march) return 0  
+
+            //检查英雄
+            var heros = __require("HeroController").HeroController.getInstance().getHaveHeroCanMarchList()
+            for (var i = 0; i < march.HeroIds.length; ++i) if (!heros.find((e)=>{return e._id == march.HeroIds[i]})) return 0
+ 
+            //检查士兵
+            var armys = __require("GameTools").default.getAttackerMyArmys()
+            for (var group = {}, i = 0; i < armys.length; ++i) {var n=armys[i].ArmyData.id; group[n] = (group[n] ? group[n] : 0) + 1}
+            for (var e of march.Armys) {
+                if (e && e.ArmyId && e.isMecha && !helper.battle.mechaOk(e.mechaId)) return 0
+                if (e && e.ArmyId && !e.isMecha && (!group[e.ArmyId] || (group[e.ArmyId] -= e.Num)<0)) return 0
+            }
+        }
+        return 1
+    },
+
+    async _execute(task) {
+        //检查次数、行军队列、英雄及士兵、体力
+        if (task && UserData.myMarchNum < UserData.myMarchNumMAX && this._precheck()) {
+            //检查体力
+            switch (await this._energy(task)) {
+                case 2: 
+                    //自动补充体力,重新执行任务 
+                    return this._execute(task)
+                case 1: 
+                    //体力检查通过,查找并发起集结 
+                    var o = await this._search(task)
+                    o = o && o.point && await this._assembly(o.point)
+                    o && o.marchInfo && (this.state.counter++, this.state.lasttime=o.marchInfo.marchStartTime, this._update())
+                    o && o.marchInfo || await sleep(5000)
+                case 0:
+            };
+        }
+    },
+
+    _newTask() {       
+        for (var a = [], s, i = 0; i < this.config.length; ++i) {
+            s = this.setting.group.find(e => e.id == this.config[i].id)
+            s && s.selected && s.min && s.max && a.push({id: s.id, type: this.config[i].type, min: s.min, max: s.max})
+        }
+        return a[Math.floor(Math.random()*a.length)]
+    },
+
+    async _onTimer() {
+        if (this.state.counter < this.setting.count && !this.busy) {
+            try {this.busy = 1, await this._execute(this._newTask())} finally{this.busy = 0}
+        }
+    },
+
+    _start() {
+        this.timer || (this.timer = setInterval(this._onTimer.bind(this), this.setting.interval*1000))
+    },
+
+    _stop() {
+        this.timer && (clearInterval(this.timer), this.timer = 0)
+    },
+    
+    _update() {
+        this._save()
+        this._render()
+    },
+
+    _save() {
+        setItem("create-assembly", JSON.stringify({setting:this.setting, state:this.state}))        
+    },
+
+    async _load() {
+        var o = await getItem("create-assembly")
+        o && (o = JSON.parse(o)) && (this.setting = o.setting, this.state = o.state)
+    },
+
+    _render() {
+        var iframe = helper.dialog.iframe;
+        if (iframe && iframe.name == "create-assembly") {
+            var e = {param:{}, group:[], state:{}};
+            e.param.preset = this.setting.preset,
+            e.param.count = this.setting.count,
+            e.param.interval = this.setting.interval,
+            e.param.energy = this.setting.energy,
+            e.param.precheck = this.setting.precheck,
+            e.state.counter = this.state.counter,
+            e.state.running = this.state.running;
+
+            for(var c of this.config) {
+                var s = this.setting.group.find(e=>e.id == c.id)
+                var t = {id:c.id, text: c.text, cmin: c.cmin, cmax: c.cmax, step: c.step, selected: s ? s.selected : !1, min: s ? s.min: c.cmin, max: s ? s.max : c.cmax}
+                e.group.push(t)
+            }
+
+            iframe.contentWindow.render(e)
+        }
+    },
+
+    start() {
+        if (!this.state.running && this.setting.count) {
+            this.state.running = !0, this.state.counter = 0, 
+            this._start(),
+            this._onTimer(),
+            this._update();
+        }
+    },
+
+    stop() {
+        if (this.state.running) {
+            this.state.running = !1,
+            this._stop(), 
+            this._update()
+        }
+    },
+
+    apply(s) {
+        //参数修正
+        s.preset = s.preset >= 1 && s.preset <= 9 ? s.preset : 9;
+        s.count = s.count > 0 ? s.count : 0;
+        s.interval = s.interval >= 0 ? s.interval : 1;
+        s.group.forEach(e=>{
+            if (e.min > e.max) {
+                var n = e.max
+                e.max = e.min, e.min = n
+            }          
+        })
+
+        //参数更新
+        var o = this.setting.interval
+        this.setting = s
+        
+        //重置计时器
+        this.setting.interval != o && this.timer && (this._stop(), this._start()) 
+        this._update();
+    },
+
+    async init() {
+        await this._load()
+        this.state.running && this._start()
+    },
+
+    free() {
+        this._stop()
+    },
+
+    open() {
+        helper.dialog.open({name:"create-assembly", width:515, height:190+this.config.length*30, html:this.html});
+        this._render();
+    }
+}
+
+helper.pro.createAssembly.html = String.raw 
+`<html charset="UTF-8">
+<head>
+<style>
+    body{line-height:30px; vertical-align:top; font-size:14px; font-family:"Helvetica","Lucida Console","Microsoft soft";}
+    h3{display:block; margin-top:12px; margin-bottom:8px; text-align:center; width:100%}
+    label{margin-left:2px; margin-right:2px;}
+    label.caption{display:inline-block; width:80px;}
+    span{margin-left:20px; margin-right:0px;}
+    input{color:#333;border:1px solid #999; border-radius:3px; outline-style:none; margin-right:12px; padding-top:2px; height:20px;}
+    input[type="checkbox"]{margin-right:1px; vertical-align:top; margin-top:8px; width:14px; height:14px;}
+    select{color:#333; border:1px solid #999; border-radius:4px; outline-style:none; margin-left:0px; padding-top:1px; height:20px; }
+    button{border:1px solid #999; border-radius:3px; outline-style:none; text-align:center; margin-top:0px; width:60px; height:22px;}
+    button:hover{background-color:#ccc;} button:focus{background-color:#ccc;} button:active{transform: translateY(1px);}
+    input::-webkit-input-placeholder{color: #aaa;}
+    #counter{display:inline-block; color:green; margin-left:123px; width:130px;}
+    #state{margin-left:10px; margin-top:8px; text-align:center; height:20px}
+    #action{margin-left:145px; margin-top:8px; text-align:center; width:80px;}
+    div.panel{border:1px solid silver; border-radius:6px; margin:8px; padding:4px; padding-left:12px; box-shadow: 3px 3px 6px gray;}
+    .combo-box{display:inline-block; position:relative;} .combo-list{width:70px;} .combo-edit{position:absolute; padding-top:1px; width:50px; height:18px; left:1px; top:1px; border:0px;}
+<\/style>
+<\/script>      
+<script>
+    function $(a) {
+        return a && '#'==a[0] && document.getElementById(a.substring(1))
+    }
+
+    function editchange(edit) {
+        edit.setAttribute("value", Number(edit.value.replace('次','').replace('秒',''))); 
+        apply();   
+    }
+
+    function listchange(list) {
+        var edit = list.parentNode.children["edit"];
+        var i = list.selectedIndex;
+        edit.value = list.options[i].innerText;
+        edit.setAttribute("value", list.options[i].value);
+        list.selectedIndex = 0;
+        apply();
+    }
+
+    function apply() {
+        var e = {group:[]};
+        e.preset = Number($("#preset").value);
+        e.count = Number($("#count").children["edit"].getAttribute("value"));
+        e.interval = Number($("#interval").children["edit"].getAttribute("value"));
+        e.precheck = $("#precheck").checked; 
+        e.energy = $("#energy").checked; 
+        
+        for(var div of $("#group").children) {
+            var g = {};
+            g.id = Number(div.id.substring(5)),
+            g.selected = div.children["selected"].checked,
+            g.min = Number(div.children["min"].value),
+            g.max = Number(div.children["max"].value),
+            e.group.push(g) 
+        }
+
+        parent.helper.pro.createAssembly.apply(e)
+    }
+
+    function _html(g) {
+        for (var options = "", i=g.cmin; i<=g.cmax; i=i+g.step) options += '<option value=' + i + '>' + i + '级<\/option>' 
+        return '<div id=type-' + g.id + '>' +
+               '    <input type="checkbox" name="selected" onclick="apply()"><label class="caption">' + g.text + '<\/label>' + 
+               '    <span><\/span><label>最低等级：<\/label>' + 
+               '    <select name="min" class="combo-list" onchange="apply()">' + options + '<\/select>' + 
+               '    <span><\/span><label>最高等级：<\/label>' + 
+               '    <select name="max" class="combo-list" onchange="apply()">' + options + '<\/select>' +
+               '<\/div>'
+    }
+
+    function render(e) {
+        for (var html="", i=0; i<e.group.length; ++i) html = html.concat(_html(e.group[i]))
+        $("#group").innerHTML = html
+        
+        $("#preset").value = e.param.preset;
+        $("#count").children["edit"].value = (99999 == e.param.count) ? '无限次' : e.param.count + '次';
+        $("#count").children["edit"].setAttribute("value",e.param.count);
+        $("#interval").children["edit"].value = e.param.interval + '秒';
+        $("#interval").children["edit"].setAttribute("value", e.param.interval);
+        $("#energy").checked = e.param.energy;
+        $("#precheck").checked = e.param.precheck;
+        $("#counter").innerText = e.state.counter ? '已发起' + e.state.counter +'次集结' : ''
+        $("#counter").style.color = e.state.counter >= e.param.count ? "green" : e.state.running ? "purple" : "black"
+        $("#state").innerText = e.state.running ? "运行中" : "未运行"
+        $("#state").style.backgroundColor = e.state.running ? "greenyellow" : "#aaa"
+        $("#state").style.borderRadius = "2px"
+        $("#action").innerText = e.state.running ? "停止" : "启动";
+
+        for(var g of e.group) {
+            var children = $("#type-"+g.id).children
+            children["selected"].checked= g.selected
+            children["min"].value = g.min
+            children["max"].value = g.max
+        }
+    }
+
+    function action() {
+        var o = parent.helper.pro.createAssembly
+        o.state.running ? o.stop() : o.start()
+    }
+<\/script>
+<\/head>
+<body>
+    <h3>自动发起集结<\/h3>
+    <div class="panel">
+        <label>编队：<\/label>
+        <select id="preset" class="combo-list" onchange="apply()">
+            <option value="1">编队1<\/option>
+            <option value="2">编队2<\/option>
+            <option value="3">编队3<\/option>
+            <option value="4">编队4<\/option>
+            <option value="5">编队5<\/option>
+            <option value="6">编队6<\/option>
+            <option value="7">编队7<\/option>
+            <option value="8">编队8<\/option>
+            <option value="9">自动<\/option>
+        <\/select>
+        <span><\/span><span><\/span><label>间隔：<\/label>
+        <div id="interval" class="combo-box">
+            <select name="list" class="combo-list" onchange="listchange(this)">
+                <option style="display:none"><\/option>
+                <option value="1">1秒<\/option>
+                <option value="30">30秒<\/option>
+                <option value="60">60秒<\/option>
+                <option value="300">300秒<\/option>
+                <option value="600">600秒<\/option>
+            <\/select>
+            <input name="edit" class="combo-edit" onchange="editchange(this)">
+        <\/div>
+        <span><\/span><span><\/span><label>次数：<\/label>
+        <div id="count" class="combo-box">
+            <select name="list" class="combo-list" onchange="listchange(this)">
+                <option style="display:none"><\/option>
+                <option value="1">1次<\/option>
+                <option value="5">5次<\/option>
+                <option value="10">10次<\/option>
+                <option value="50">50次<\/option>
+                <option value="99999">无限次<\/option>
+            <\/select>
+            <input name="edit" class="combo-edit" onchange="editchange(this)">
+        <\/div>
+        <br>
+        <input type="checkbox" id="precheck" onclick="apply()"><label>检查行军<\/label>
+        <span><\/span>
+        <input type="checkbox" id="energy" onclick="apply()"><label>补充体力<\/label>
+        <span><\/span>
+        <span id="counter">已发起99999次集结<\/span>
+    <\/div>
+    <div id="group" class="panel">
+        <div>
+            <input type="checkbox" name="selected" onclick="apply()"><label class="caption">战锤-4000<\/label>
+            <span><\/span><label>最低等级：<\/label>
+            <select name="min" class="combo-list" onchange="apply()">
+                <option value="67">67级<\/option>
+            <\/select>
+            <span><\/span><label>最高等级：<\/label>
+            <select name="max" class="combo-list" onchange="apply()">
+                <option value="67">67级<\/option>
+            <\/select>
+        <\/div>
+    <\/div>
+    <span id="state">未运行<\/span>
+    <button id="action" onclick="action()">启动<\/button>
+<\/body>
+<\/html>`
+
+
+//-------------------------------------------------------------------------------------------------
+//自动拯救难民
+helper.pro.helpRefugee && helper.pro.helpRefugee.free()
+helper.pro.helpRefugee = {
+    setting: { 
+       preset:1, 
+       count:1, 
+       interval:1, 
+       precheck:1,
+       energy:0
+    },
+
+    state:{counter:0, lasttime:0, running:!1},
+
+    _march(ti) {
+        var context = helper.battle.backup()
+        try {
+            //集结, 出征
+            Object.assign(new (__require("NWorldUIRefugeeCamp").default), {_tileInfo:ti, _id:ti.id}).startAssembly(null, 0)  // 0-普通集结 1-超级集结
+            return helper.battle.setup(this.setting.preset, 9999) && helper.battle.march()   
+        }
+        finally {
+            helper.battle.restore(context)
+        }
+    },
+
+    async _assembly(p) {
+        var c = __require("NWorldMapController").default.instance
+        var ti = (c.updateTileInfo(p, 0), c.getTileInfoByCoord(p.x, p.y, p.k, 0))
+        if (ti && await helper.battle.mutex.acquire(2000) ) {
+            try {
+                //集结, 出征
+                return await this._march(ti)
+            }
+            finally {
+                helper.battle.mutex.release()    
+            }
+        }
+    },
+ 
+    async _point(p) {
+        var o = await send(RequestId.GET_WORLD_INFO, {
+                            x: p.x,
+                            y: p.y,
+                            k: UserData.ServerId,
+                            rid: 0,
+                            width: 14,
+                            height: 20,
+                            marchInfo: !1,
+                            viewLevel: 0})
+        return o && (o=o.pointList) && o.find(e=>{return e.x == p.x && e.y == p.y})
+    },
+ 
+    //使用求救信
+    async _useLetter() {
+        var itemid = __require("GameDefine").ActivityItem.refugeeLetter
+        var amount = UserData.getItemAmount(itemid)
+        if (amount > 0) {    
+            //禁止跳转
+            var _doJump = __require("NWorldMapTodoController").NWorldMapTodoController._instance.doJump
+            __require("NWorldMapTodoController").NWorldMapTodoController._instance.doJump = (e)=>{e.click && _doJump(e)}
+            try {
+                return await send(RequestId.ITEM_USE, {amount:1, itemid:itemid})
+            }
+            finally {
+                //恢复跳转
+                __require("NWorldMapTodoController").NWorldMapTodoController._instance.doJump = _doJump
+            }
+        }
+    },
+ 
+    //查找难民
+    _search() {
+        return send(RequestId.GetRefugee, {})
+    },
+ 
+    //补充体力
+    _charge() {
+        for(var e of UserData.getItemList()) if (6 === e.Data.type && e.Amount > 0) return send(RequestId.ITEM_USE, {amount:1, itemid:e.ItemId})
+    },
+ 
+    //体力检查  
+    async _energy() {
+        //计算任务体力
+        var y = __require("TableManager").TABLE.getTableDataById("monster_group", "18")  //18-Refugee
+          , t = __require("FWSTool").Obj.getPropertyByNames(y, 0, "cost_energy")
+          , s = UserData.getEnergy(1).Point;
+        return (t <= s ? 1 : this.setting.energy && await this._charge() ? 2 : 0)
+    },
+ 
+    //编队检查
+    _precheck() {
+        //单兵检查(含机甲)
+        if (0 == this.setting.preset || 9 == this.setting.preset) { 
+            var one = __require("GameTools").default.getAttackerMyArmys().sort((t, e)=>{return t.ArmyData.power - e.ArmyData.power})[0];
+            if (!one || (one.battleMechaData && !helper.battle.mechaOk(one.battleMechaData.mechaId)))
+                return 0
+        }
+        //预设编队
+        if (0 < this.setting.preset && this.setting.preset < 9 && this.setting.precheck) { 
+            var march = UserData.PresetMarchData.getPreMarchByIndex(this.setting.preset-1)
+            if (!march) return 0  
+ 
+            //检查英雄
+            var heros = __require("HeroController").HeroController.getInstance().getHaveHeroCanMarchList()
+            for (var i = 0; i < march.HeroIds.length; ++i) if (!heros.find((e)=>{return e._id == march.HeroIds[i]})) return 0
+ 
+            //检查士兵
+            var armys = __require("GameTools").default.getAttackerMyArmys()
+            for (var group = {}, i = 0; i < armys.length; ++i) {var n=armys[i].ArmyData.id; group[n] = (group[n] ? group[n] : 0) + 1}
+            for (var e of march.Armys) {
+                if (e && e.ArmyId && e.isMecha && !helper.battle.mechaOk(e.mechaId)) return 0
+                if (e && e.ArmyId && !e.isMecha && (!group[e.ArmyId] || (group[e.ArmyId] -= e.Num)<0)) return 0
+            }
+        }
+        return 1
+    },
+ 
+    async _execute() {
+        //检查次数、行军队列、英雄及士兵、体力
+        if (UserData.myMarchNum < UserData.myMarchNumMAX && this._precheck()) {
+            //检查体力
+            switch (await this._energy()) {
+                case 2: 
+                    //自动补充体力,重新执行任务
+                    return this._execute()
+                case 1: 
+                    //体力检查通过,查找难民(使用难民信)并发起集结 
+                    var o = await this._search()
+                    o && o.points && !o.points[0] && await this._useLetter() && (o = await this._search())
+                    o && o.points && (o=o.points[0]) && (o = await this._point(o)) && (o = await this._assembly(o))
+                    o && o.marchInfo && (this.state.counter++, this.state.lasttime=o.marchInfo.marchStartTime, this._update())
+                    o && o.marchInfo || sleep(5000)
+                case 0:
+            };
+        }
+    },
+ 
+    async _onTimer() {
+        if (this.state.counter < this.setting.count && !this.busy) {
+            try {this.busy = 1, await this._execute()} finally{this.busy = 0}
+        }
+    },
+ 
+    _start() {
+        this.timer || (this.timer = setInterval(this._onTimer.bind(this), this.setting.interval*1000))
+    },
+ 
+    _stop() {
+        this.timer && (clearInterval(this.timer), this.timer = 0)
+    },
+    
+    _update() {
+        this._save()
+        this._render()
+    },
+ 
+    _save() {
+        setItem("help-refugee", JSON.stringify({setting:this.setting, state:this.state}))
+    },
+ 
+    async _load() {
+        var o = await getItem("help-refugee")
+        o && (o = JSON.parse(o)) && (this.setting = o.setting, this.state = o.state)
+    },
+ 
+    _render() {
+        var iframe = helper.dialog.iframe;
+        if (iframe && iframe.name == "help-refugee") {
+            var e = {param:{}, state:{}};
+        
+            e.param.preset = this.setting.preset,
+            e.param.count = this.setting.count,
+            e.param.interval = this.setting.interval,
+            e.param.energy = this.setting.energy,
+            e.param.precheck = this.setting.precheck,
+            e.state.counter = this.state.counter,
+            e.state.running = this.state.running
+ 
+            iframe.contentWindow.render(e)
+        }
+    },
+ 
+    start() {
+        if (!this.state.running && this.setting.count) {
+            this.state.running = !0, this.state.counter = 0, 
+            this._start(),
+            this._onTimer(),
+            this._update();
+        }
+    },
+ 
+    stop() {
+        if (this.state.running) {
+            this.state.running = !1,
+            this._stop(), 
+            this._update()
+        }
+    },
+ 
+    apply(s) {
+        //参数修正
+        s.preset = s.preset >= 1 && s.preset <= 9 ? s.preset : 9
+        s.count = s.count > 0 ? s.count : 0
+        s.interval = s.interval >= 0 ? s.interval : 1
+ 
+        //参数更新
+        var o = this.setting.interval
+        this.setting = s
+        
+        //重置计时器
+        this.setting.interval != o && this.timer && (this._stop(), this._start()) 
+        this._update()
+    },
+ 
+    async init() {
+        await this._load()
+        this.state.running && this._start()
+    },
+
+    free() {
+        this._stop()
+    },
+
+    open() {
+        helper.dialog.open({name:"help-refugee", width:520, height:172, html:this.html})
+        this._render()
+    }
+}
+
+helper.pro.helpRefugee.html = String.raw 
+`<html charset="UTF-8">
+<head>
+<style>
+    body{line-height:30px; vertical-align:top; font-size:14px; font-family:"Helvetica","Lucida Console","Microsoft soft";}
+    h3{display:block; margin-top:12px; margin-bottom:8px; text-align:center; width:100%}
+    label{margin-left:2px; margin-right:2px;}
+    label.caption{display:inline-block; width:80px;}
+    span{margin-left:20px; margin-right:0px;}
+    input{color:#333;border:1px solid #999; border-radius:3px; outline-style:none; margin-right:12px; padding-top:2px; height:20px;}
+    input[type="checkbox"]{margin-right:1px; vertical-align:top; margin-top:8px; width:14px; height:14px;}
+    select{color:#333; border:1px solid #999; border-radius:4px; outline-style:none; margin-left:0px; padding-top:1px; height:20px; }
+    button{border:1px solid #999; border-radius:3px; outline-style:none; text-align:center; margin-top:0px; width:60px; height:22px;}
+    button:hover{background-color:#ccc;} button:focus{background-color:#ccc;} button:active{transform: translateY(1px);}
+    input::-webkit-input-placeholder{color: #aaa;}
+    #counter{display:inline-block; color:green; margin-left:123px; width:130px;}
+    #state{margin-left:10px; margin-top:8px; text-align:center; height:20px}
+    #action{margin-left:145px; margin-top:8px; text-align:center; width:80px;}
+    div.panel{border:1px solid silver; border-radius:6px; margin:8px; padding:4px; padding-left:12px; box-shadow: 3px 3px 6px gray;}
+    .combo-box{display:inline-block; position:relative;} .combo-list{width:70px;} .combo-edit{position:absolute; padding-top:1px; width:50px; height:18px; left:1px; top:1px; border:0px;}
+<\/style>
+<\/script>      
+<script>
+    function $(a) {
+        return a && '#'==a[0] && document.getElementById(a.substring(1))
+    }
+
+    function editchange(edit) {
+        edit.setAttribute("value", Number(edit.value.replace('次','').replace('秒',''))); 
+        apply();   
+    }
+
+    function listchange(list) {
+        var edit = list.parentNode.children["edit"];
+        var i = list.selectedIndex;
+        edit.value = list.options[i].innerText;
+        edit.setAttribute("value", list.options[i].value);
+        list.selectedIndex = 0;
+        apply();
+    }
+
+    function apply() {
+        var e = {group:[]};
+        e.preset = Number($("#preset").value);
+        e.count = Number($("#count").children["edit"].getAttribute("value"));
+        e.interval = Number($("#interval").children["edit"].getAttribute("value"));
+        e.precheck = $("#precheck").checked; 
+        e.energy = $("#energy").checked; 
+
+        parent.helper.pro.helpRefugee.apply(e)
+    }
+
+    function render(e) {
+        $("#preset").value = e.param.preset
+        $("#count").children["edit"].value = (99999 == e.param.count) ? '无限次' : e.param.count + '次'
+        $("#count").children["edit"].setAttribute("value",e.param.count)
+        $("#interval").children["edit"].value = e.param.interval + '秒'
+        $("#interval").children["edit"].setAttribute("value", e.param.interval)
+        $("#energy").checked = e.param.energy
+        $("#precheck").checked = e.param.precheck
+        $("#counter").innerText = e.state.counter ? '已拯救难民' + e.state.counter +'次' : ''
+        $("#counter").style.color = e.state.counter >= e.param.count ? "green" : e.state.running ? "purple" : "black"
+        $("#state").innerText = e.state.running ? "运行中" : "未运行"
+        $("#state").style.backgroundColor = e.state.running ? "greenyellow" : "#aaa"
+        $("#state").style.borderRadius = "2px"
+
+        $("#action").innerText = e.state.running ? "停止" : "启动"
+    }
+
+    function action() {
+        var o = parent.helper.pro.helpRefugee
+        o.state.running ? o.stop() : o.start()
+    }
+<\/script>
+<\/head>
+<body>
+    <h3>自动拯救难民<\/h3>
+    <div class="panel">
+        <label>编队：<\/label>
+        <select id="preset" class="combo-list" onchange="apply()">
+            <option value="1">编队1<\/option>
+            <option value="2">编队2<\/option>
+            <option value="3">编队3<\/option>
+            <option value="4">编队4<\/option>
+            <option value="5">编队5<\/option>
+            <option value="6">编队6<\/option>
+            <option value="7">编队7<\/option>
+            <option value="8">编队8<\/option>
+            <option value="9">自动<\/option>
+        <\/select>
+        <span><\/span><span><\/span><label>间隔：<\/label>
+        <div id="interval" class="combo-box">
+            <select name="list" class="combo-list" onchange="listchange(this)">
+                <option style="display:none"><\/option>
+                <option value="1">1秒<\/option>
+                <option value="30">30秒<\/option>
+                <option value="60">60秒<\/option>
+                <option value="300">300秒<\/option>
+                <option value="600">600秒<\/option>
+            <\/select>
+            <input name="edit" class="combo-edit" onchange="editchange(this)">
+        <\/div>
+        <span><\/span><span><\/span><label>次数：<\/label>
+        <div id="count" class="combo-box">
+            <select name="list" class="combo-list" onchange="listchange(this)">
+                <option style="display:none"><\/option>
+                <option value="1">1次<\/option>
+                <option value="5">5次<\/option>
+                <option value="10">10次<\/option>
+                <option value="50">50次<\/option>
+                <option value="99999">无限次<\/option>
+            <\/select>
+            <input name="edit" class="combo-edit" onchange="editchange(this)">
+        <\/div>
+        <br>
+        <input type="checkbox" id="precheck" onclick="apply()"><label>检查行军<\/label>
+        <span><\/span>
+        <input type="checkbox" id="energy" onclick="apply()"><label>补充体力<\/label>
+        <span><\/span>
+        <span id="counter">已拯救难民99999次<\/span>
+    <\/div>
+    <span id="state">未运行<\/span>
+    <button id="action" onclick="action()">启动<\/button>
+<\/body>
+<\/html>`
+
+
+//-------------------------------------------------------------------------------------------------
+//自动加入集结
+helper.pro.joinAssembly && helper.pro.joinAssembly.free()
+helper.pro.joinAssembly = {
+    //id=12 - 战锤
+    //id=18 - 难民营
+    //id=74 - 军团据点
+    //id=86 - 俱星
+    config: [
+        {id:1, active:!0, name:"Hammer",      text:"战锤-4000"},
+        {id:2, active:!0, name:"RefugeeCamp", text:"难民营"},
+        {id:3, active:!0, name:"Legion",      text:"军团据点"},
+        {id:4, active:!0, name:"Allstar",     text:"俱星-4000"},
+        {id:5, active:!0, name:"Rattat",      text:"爱心砰砰"},
+        {id:6, active:!0, name:"Pioneer",     text:"黑暗精卫"}
+    ],
+
+    setting: [
+        {id:1, selected:!0, count:50, preset:0, delay:3, limit:!1, leader:""},
+        {id:2, selected:!0, count:10, preset:0, delay:3, limit:!1, leader:""},
+        {id:3, selected:!0, count:50, preset:0, delay:3, limit:!1, leader:""},
+        {id:4, selected:!1, count:10, preset:0, delay:3, limit:!1, leader:""},
+        {id:5, selected:!1, count:50, preset:0, delay:3, limit:!1, leader:""},
+        {id:6, selected:!1, count:50, preset:0, delay:3, limit:!1, leader:""}
+    ],
+
+    state: {counter:{}, running:!1},
+
+    deferred: [],
+
+    _id(asseml) {
+        if (asseml && 12 == asseml.pointType && (44 == asseml.itemId || 9024 == asseml.itemId)) return 1
+        if (asseml && 18 == asseml.pointType) return 2
+        if (asseml && 74 == asseml.pointType) return 3
+        if (asseml && 86 == asseml.pointType) return 4
+        if (asseml && 14 == asseml.pointType) return 5
+        if (asseml && 12 == asseml.pointType && (9132 == asseml.itemId)) return 6         //9132:精卫
+    },
+    
+    _join(asseml) {
+        var context = helper.battle.backup();
+        try {
+            var a = __require("AllianceAssemlbyPanelNew").default
+            a.AttackCityinfo(__require("BattleData").BattleType.PVP_Alliance_Assembly_Join, asseml)         //加入
+            var preset = this.setting.find(e=>e.id == this._id(asseml)).preset
+            var maxNum = asseml.rallyCapacity - asseml.rallySize
+            return helper.battle.setup(preset, maxNum) && helper.battle.march()   //出征
+        }
+        finally {
+            helper.battle.restore(context)
+        }
+    },
+
+    //编队检查
+    _precheck(preset) {
+        //单兵检查(含机甲)
+        if (0 == preset || 9 == preset) { 
+            var one = __require("GameTools").default.getAttackerMyArmys().sort((t, e)=>{return t.ArmyData.power - e.ArmyData.power})[0];
+            if (!one || (one.battleMechaData && !helper.battle.mechaOk(one.battleMechaData.mechaId)))
+                return 0
+        }
+        //预设编队
+        if (0 < preset && preset < 9) { 
+            var march = UserData.PresetMarchData.getPreMarchByIndex(preset-1)
+            if (!march) return 0  
+    
+            //检查英雄
+            var heros = __require("HeroController").HeroController.getInstance().getHaveHeroCanMarchList()
+            for (var i = 0; i < march.HeroIds.length; ++i) if (!heros.find((e)=>{return e._id == march.HeroIds[i]})) return 0
+ 
+            //检查士兵
+            var armys = __require("GameTools").default.getAttackerMyArmys()
+            for (var group = {}, i = 0; i < armys.length; ++i) {var n=armys[i].ArmyData.id; group[n] = (group[n] ? group[n] : 0) + 1}
+            for (var e of march.Armys) {
+                if (e && e.ArmyId && e.isMecha && !helper.battle.mechaOk(e.mechaId)) return 0
+                if (e && e.ArmyId && !e.isMecha && (!group[e.ArmyId] || (group[e.ArmyId] -= e.Num)<0)) return 0
+            }
+        }
+        return 1
+    },
+
+    _distance(p1,p2) {
+        return Math.sqrt(Math.pow(p1.x-p2.x, 2) + Math.pow(p1.y-p2.y, 2))
+    },
+ 
+    _check(asseml) {
+        var MarchType = __require("WorldMapCommon").MarchType
+
+        var i = asseml.marchType == MarchType.ALLIANCE_SUPER_RALLY_BATTLE ? "61057" : asseml.marchType == MarchType.ALLIANCE_RALLY_MIX_BATTLE ? "770013" : "8005"
+          , n = parseInt(__require("FWSTool").Obj.getProperty(__require("TableManager").TABLE.getTableDataById("data_config", i), "value", "5"))  //允许成员数
+          , c = this.config.find(e=>e.id == this._id(asseml))                       //配置项
+          , s = this.setting.find(e=>e.id == this._id(asseml))                      //设置项
+          , k = this.state.counter && c && this.state.counter[c.name] ? this.state.counter[c.name] : 0   //已加入次数
+          
+            //检查行军数量、设置控制、及集结本身
+        return UserData.myMarchNum < UserData.myMarchNumMAX &&
+            c && c.active && s && s.selected &&  k < s.count && this._precheck(s.preset) &&
+            asseml.marchState == __require("WorldMapCommon").MarchState.INIT &&
+            asseml.members.find(e=>e.uid == UserData.UID) == undefined && 
+            asseml.members.length < n && 
+            asseml.leaderName.includes(s.leader) &&
+            asseml.rallyCapacity - asseml.rallySize > 0 &&
+            (
+                !s.limit ||
+                this._distance(asseml.leaderPos, UserData._WorldCoord)<100 &&       //本人与集结发起者距离
+                this._distance(asseml.leaderPos, asseml.targetPos)<200              //集结发起者与目标距离
+            )
+    },
+
+    async _process() {
+        var AllianceAssemlData = __require("AllianceAssemlbyController").default.getInstance().AllianceAssemlData
+
+        //查找并加入集结(异步并发控制)
+        if (await helper.battle.mutex.acquire(2000)) {
+            try {
+                for(var asseml of AllianceAssemlData) {
+                    var i = this.deferred.indexOf(asseml.teamId)
+                    var o = i<0 && this._check(asseml) && await this._join(asseml)
+                    var c = o && this.config.find(e=>e.id == this._id(asseml))
+                    c && (this.state.counter[c.name] = this.state.counter[c.name] ? this.state.counter[c.name]+1 : 1, this._update())     
+                }
+            }
+            finally {
+                helper.battle.mutex.release()
+            }   
+        }
+    },
+
+    _onTimeout(teamId) {
+        //从延迟加入列表摘除
+        var i = this.deferred.indexOf(teamId)
+        i>=0 && this.deferred.splice(i,1)
+        this._process()
+    },
+
+    onAssemblyCreate(asseml) {
+        console.log("收到发起集结数据:", asseml)
+
+        var s = this.setting.find(e=>e.id == this._id(asseml))
+          , c = this.config.find(e=>e.id == this._id(asseml))
+          , n = this.state.counter && c && this.state.counter[c.name] ? this.state.counter[c.name] : 0;   //已加入次数
+        if (c && s) {
+            c.active && s.selected && n < s.count && asseml.leaderName.includes(s.leader) && (
+                this.deferred.push(asseml.teamId),
+                setTimeout(e=>this._onTimeout(e), s.delay*1000, asseml.teamId)
+            )
+        } //else console.log(asseml);
+    },
+
+    onMyMarchUpdate(e) {
+        var o = JSON.parse(e)
+        4 == o.marchInfo.state && this._process()
+    },
+
+    _onEvent() {
+        __require("EventCenter").EVENT.on(__require("EventId").EventId.AssemblyCreate, this.onAssemblyCreate, this),  //监听创建集结事件
+        __require("EventCenter").EVENT.on(__require("EventId").EventId.My_March_Update, this.onMyMarchUpdate, this)   //监听修改行军事件
+    },
+
+    _offEvent() {
+        __require("EventCenter").EVENT.off(__require("EventId").EventId.AssemblyCreate, this.onAssemblyCreate, this), //监听创建集结事件
+        __require("EventCenter").EVENT.off(__require("EventId").EventId.My_March_Update, this.onMyMarchUpdate, this)  //监听修改行军事件
+    },
+
+    async _start() {
+        this._onEvent(), this._process()
+    },
+
+    _stop() {
+        this._offEvent()
+    },
+
+    _update() {
+        this._save()
+        this._render()
+    },
+
+    _save() {
+        setItem("join-assembly", JSON.stringify({setting:this.setting, state:this.state}))
+    },
+
+    async _load() {
+        var o = await getItem("join-assembly")
+        o && (o = JSON.parse(o)) && (this.setting = o.setting, this.state = o.state)
+    },
+
+    _render() {
+        var iframe = helper.dialog.iframe;
+        if (iframe && iframe.name == "join-assembly") {
+            var state = iframe.contentWindow.document.getElementById("state")
+              , action = iframe.contentWindow.document.getElementById("action");
+
+            // 渲染状态启停
+            state.innerText = this.state.running ? "运行中" : "未运行"
+            state.style.backgroundColor = this.state.running ? "greenyellow" : "#aaa"
+            state.style.borderRadius = "2px"
+            action.innerText = this.state.running ? "停止" : "启动";
+    
+            //渲染设置面板
+            for (var s of this.setting) {
+                var div = iframe.contentWindow.document.getElementById(s.id.toString());
+                if (div) {
+                    var c = this.config.find(e=>e.id == s.id)
+                      , n = this.state.counter && this.state.counter[c.name]
+
+                    div.children["selected"].checked = s.selected,
+                    div.children["selected"].disabled = !c.active,
+                    div.children["count"].children["edit"].value = 99999==s.count ? "无限次" : s.count+"次",
+                    div.children["count"].children["edit"].setAttribute("value", s.count);                    
+                    div.children["count"].children["edit"].disabled = !c.active,
+                    div.children["count"].children["list"].disabled = !c.active,
+                    div.children["preset"].value = s.preset,
+                    div.children["preset"].disabled = !c.active,
+                    div.children["delay"].value = s.delay,
+                    div.children["delay"].disabled = !c.active,
+                    div.children["limit"].checked = s.limit,
+                    div.children["limit"].disabled = !c.active,
+                    div.children["leader"].value = s.leader,
+                    div.children["leader"].disabled = !c.active,
+                    div.getElementsByTagName("p")[0].children["info"].innerText = n ? "已参加" + n + "次" : "　",
+                    div.getElementsByTagName("p")[0].children["info"].style.color = s.count <= n ? "green" : this.state.running && s.selected ? "purple" : "black";
+                }
+            }
+        }
+    },
+
+    start() {
+        !this.state.running && (this.state.running = !0, this._start(), this._update())
+    },
+
+    stop() {
+        this.state.running && (this.state.running = !1, this._stop(), this._update())
+    },
+
+    apply(setting) {
+        for (var s of setting) {
+            var a = this.setting.find((e)=>{ return e.id == s.id})
+            a && (
+                a.selected = s.selected,
+                a.count = s.count,
+                a.preset = s.preset,
+                a.delay = s.delay,
+                a.limit = s.limit,
+                a.leader = s.leader
+            )
+        }
+        this._update()
+        this._process()
+    },
+
+    dayInit() {
+        this.state.counter = {}, this._update()
+    },
+
+    async init() {
+        await this._load()
+        this.state.running && this._start()
+    },
+
+    free() {
+        this._stop()
+    },
+
+    open() {
+        helper.dialog.open({name:"join-assembly", width:680, height:445, html:this.html})
+        this._render()
+    }
+}
+
+helper.pro.joinAssembly.html = String.raw
+`<html charset="UTF-8">
+<head>
+    <style>
+        body{line-height:22px; vertical-align:top; font-size:14px; font-family:"Helvetica","Lucida Console","Microsoft soft";}
+        h3{display:block; margin-top:12px; margin-bottom:8px; text-align:center; width:100%}
+        p{display:inline-block; margin:0px; height:22px; width:100%;}
+        div{display:inline-block; position:relative; }
+        label{margin-right:0px;}
+        input{color:#333;border:1px solid #999; border-radius:3px; outline-style:none; margin-right:8px; padding-top:2px; height:20px;}
+        input[type="checkbox"]{margin-right:1px; vertical-align:top; margin-top:4px; width:14px; height:14px;}
+        select{color:#333; border:1px solid #999; border-radius:4px; outline-style:none; margin-left:0px; margin-right:8px; padding-top:1px; width:50px; height:20px; }
+        button{border:1px solid #999; border-radius:3px; outline-style:none; text-align:center; margin-top:0px; width:60px; height:22px;}
+        button:hover{background-color:#ccc;} button:focus{background-color:#ccc;} button:active{transform: translateY(1px);}
+        input::-webkit-input-placeholder{color: #aaa;}
+        #state{margin-left:10px; text-align:center; height:20px}
+        #action{margin-left:225px; margin-top:8px; text-align:center; width:80px;}
+    
+        div.panel{display:block; border:1px solid silver; border-radius:6px; margin:8px; margin-top:4px; margin-bottom:8px; padding-left:8px; padding-top:6px; box-shadow: 3px 3px 6px gray;}
+        .input-leader{width:90px; padding-top:0px} .input-preset{width:60px} .input-delay{width:50px}
+        .count-list{width:64px}
+        .count-edit{position:absolute; padding-top:1px; width:50px; height:18px; left:1px; top:1px; border:0px;}
+        .label-text{width:70px; display:inline-block;}
+        .label-info{display:inline-block; color:green; margin-left:3px; width:100%;}
+    <\/style>        
+    <script>
+        function editchange(edit) {
+            edit.setAttribute("value", Number(edit.value.split("次")[0])); 
+            apply();   
+        }
+
+        function listchange(list) {
+            var edit = list.parentNode.children["edit"];
+            var i = list.selectedIndex;
+            edit.value = list.options[i].innerText;
+            edit.setAttribute("value", list.options[i].value);
+            list.selectedIndex = 0;
+            apply();
+        }
+
+        function apply() {
+            var nodes = document.body.getElementsByClassName("panel")
+            var setting=[]
+            for (var div of nodes) {
+                var id = Number(div.id)
+                  , selected = div.children["selected"].checked
+                  , count = Number(div.children["count"].children["edit"].getAttribute("value"))
+                  , preset = Number(div.children["preset"].value)
+                  , delay = Number(div.children["delay"].value)
+                  , limit = div.children["limit"].checked
+                  , leader = div.children["leader"].value
+                setting.push({id:id, selected:selected, count:count, preset:preset, delay:delay, limit:limit, leader:leader})
+            }
+            parent.helper.pro.joinAssembly.apply(setting)
+        }
+
+        function action() {
+            var o = parent.helper.pro.joinAssembly
+            o.state.running ? o.stop() : o.start()
+        }
+    <\/script>
+<\/head>
+<body>
+    <h3>自动加入集结<\/h3>
+    <div id="1" class="panel">
+        <input type="checkbox" name="selected" onclick="apply()"><label class="label-text">战锤-4000<\/label>
+        <label>次数:<\/label>
+        <div name="count">
+            <select name="list" class="count-list" onchange="listchange(this)">
+                <option style="display:none"><\/option>
+                <option value="10">10次<\/option>
+                <option value="50">50次<\/option>
+                <option value="99999">无限次<\/option>
+            <\/select>
+            <input name="edit" class="count-edit" onchange="editchange(this)">
+        <\/div>
+        <label>编队:<\/label>
+        <select name="preset" class="input-preset" onchange="apply()">
+            <option value="0">单兵<\/option>
+            <option value="1">编队1<\/option>
+            <option value="2">编队2<\/option>
+            <option value="3">编队3<\/option>
+            <option value="4">编队4<\/option>
+            <option value="5">编队5<\/option>
+            <option value="6">编队6<\/option>
+            <option value="7">编队7<\/option>
+            <option value="8">编队8<\/option>
+            <option value="9">自动<\/option>
+        <\/select>
+        <label>延迟:<\/label>
+        <select name="delay" class="input-delay" onchange="apply()">
+            <option value="0">0秒<\/option>
+            <option value="1">1秒<\/option>
+            <option value="2">2秒<\/option>
+            <option value="3">3秒<\/option>
+            <option value="4">4秒<\/option>
+            <option value="5">5秒<\/option>
+            <option value="6">6秒<\/option>
+            <option value="7">7秒<\/option>
+            <option value="8">8秒<\/option>
+            <option value="9">9秒<\/option>
+        <\/select>
+        <input type="checkbox" name="limit" onclick="apply()"><label style="margin-right:10px">限定距离<\/label>
+        <label>指定:<\/label>
+        <input type="text" name="leader" class="input-leader" placeholder="玩家名字" onchange="apply()"><br>
+        <p><span name="info" class="label-info"><\/span><\/p>
+    <\/div>
+    <div id="2" class="panel">
+        <input type="checkbox" name="selected" onclick="apply()"><label class="label-text">难民营<\/label>
+        <label>次数:<\/label>
+        <div name="count">
+            <select name="list" class="count-list" onchange="listchange(this)">
+                <option style="display:none"><\/option>
+                <option value="10">10次<\/option>
+                <option value="50">50次<\/option>
+                <option value="99999">无限次<\/option>
+            <\/select>
+            <input name="edit" class="count-edit" onchange="editchange(this)">
+        <\/div>
+        <label>编队:<\/label>
+        <select name="preset" class="input-preset" onchange="apply()">
+            <option value="0">单兵<\/option>
+            <option value="1">编队1<\/option>
+            <option value="2">编队2<\/option>
+            <option value="3">编队3<\/option>
+            <option value="4">编队4<\/option>
+            <option value="5">编队5<\/option>
+            <option value="6">编队6<\/option>
+            <option value="7">编队7<\/option>
+            <option value="8">编队8<\/option>
+            <option value="9">自动<\/option>
+        <\/select>
+        <label>延迟:<\/label>
+        <select name="delay" class="input-delay" onchange="apply()">
+            <option value="0">0秒<\/option>
+            <option value="1">1秒<\/option>
+            <option value="2">2秒<\/option>
+            <option value="3">3秒<\/option>
+            <option value="4">4秒<\/option>
+            <option value="5">5秒<\/option>
+            <option value="6">6秒<\/option>
+            <option value="7">7秒<\/option>
+            <option value="8">8秒<\/option>
+            <option value="9">9秒<\/option>
+        <\/select>
+        <input type="checkbox" name="limit" onclick="apply()"><label style="margin-right:10px">限定距离<\/label>
+        <label>指定:<\/label>
+        <input type="text" name="leader" class="input-leader" placeholder="玩家名字" onchange="apply()"><br>
+        <p><span name="info" class="label-info"><\/span><\/p>
+    <\/div>
+    <div id="3" class="panel">
+        <input type="checkbox" name="selected" onclick="apply()"><label class="label-text">军团据点<\/label>
+        <label>次数:<\/label>
+        <div name="count">
+            <select name="list" class="count-list" onchange="listchange(this)">
+                <option style="display:none"><\/option>
+                <option value="10">10次<\/option>
+                <option value="50">50次<\/option>
+                <option value="99999">无限次<\/option>
+            <\/select>
+            <input name="edit" class="count-edit" onchange="editchange(this)">
+        <\/div>
+        <label>编队:<\/label>
+        <select name="preset" class="input-preset" onchange="apply()">
+            <option value="0">单兵<\/option>
+            <option value="1">编队1<\/option>
+            <option value="2">编队2<\/option>
+            <option value="3">编队3<\/option>
+            <option value="4">编队4<\/option>
+            <option value="5">编队5<\/option>
+            <option value="6">编队6<\/option>
+            <option value="7">编队7<\/option>
+            <option value="8">编队8<\/option>
+            <option value="9">自动<\/option>
+        <\/select>
+        <label>延迟:<\/label>
+        <select name="delay" class="input-delay" onchange="apply()">
+            <option value="0">0秒<\/option>
+            <option value="1">1秒<\/option>
+            <option value="2">2秒<\/option>
+            <option value="3">3秒<\/option>
+            <option value="4">4秒<\/option>
+            <option value="5">5秒<\/option>
+            <option value="6">6秒<\/option>
+            <option value="7">7秒<\/option>
+            <option value="8">8秒<\/option>
+            <option value="9">9秒<\/option>
+        <\/select>
+        <input type="checkbox" name="limit" onclick="apply()"><label style="margin-right:10px">限定距离<\/label>
+        <label>指定:<\/label>
+        <input type="text" name="leader" class="input-leader" placeholder="玩家名字" onchange="apply()"><br>
+        <p><span name="info" class="label-info"><\/span><\/p>
+    <\/div>
+    <div id="4" class="panel">
+        <input type="checkbox" name="selected" onclick="apply()"><label class="label-text">俱星-4000<\/label>
+        <label>次数:<\/label>
+        <div name="count">
+            <select name="list" class="count-list" onchange="listchange(this)">
+                <option style="display:none"><\/option>
+                <option value="10">10次<\/option>
+                <option value="50">50次<\/option>
+                <option value="99999">无限次<\/option>
+            <\/select>
+            <input name="edit" class="count-edit" onchange="editchange(this)">
+        <\/div>
+        <label>编队:<\/label>
+        <select name="preset" class="input-preset" onchange="apply()">
+            <option value="0">单兵<\/option>
+            <option value="1">编队1<\/option>
+            <option value="2">编队2<\/option>
+            <option value="3">编队3<\/option>
+            <option value="4">编队4<\/option>
+            <option value="5">编队5<\/option>
+            <option value="6">编队6<\/option>
+            <option value="7">编队7<\/option>
+            <option value="8">编队8<\/option>
+            <option value="9">自动<\/option>
+        <\/select>
+        <label>延迟:<\/label>
+        <select name="delay" class="input-delay" onchange="apply()">
+            <option value="0">0秒<\/option>
+            <option value="1">1秒<\/option>
+            <option value="2">2秒<\/option>
+            <option value="3">3秒<\/option>
+            <option value="4">4秒<\/option>
+            <option value="5">5秒<\/option>
+            <option value="6">6秒<\/option>
+            <option value="7">7秒<\/option>
+            <option value="8">8秒<\/option>
+            <option value="9">9秒<\/option>
+        <\/select>
+        <input type="checkbox" name="limit" onclick="apply()"><label style="margin-right:10px">限定距离<\/label>
+        <label>指定:<\/label>
+        <input type="text" name="leader" class="input-leader" placeholder="玩家名字" onchange="apply()"><br>
+        <p><span name="info" class="label-info"><\/span><\/p>
+    <\/div>
+    <div id="5" class="panel">
+        <input type="checkbox" name="selected" onclick="apply()"><label class="label-text">爱心砰砰<\/label>
+        <label>次数:<\/label>
+        <div name="count">
+            <select name="list" class="count-list" onchange="listchange(this)">
+                <option style="display:none"><\/option>
+                <option value="10">10次<\/option>
+                <option value="50">50次<\/option>
+                <option value="99999">无限次<\/option>
+            <\/select>
+            <input name="edit" class="count-edit" onchange="editchange(this)">
+        <\/div>
+        <label>编队:<\/label>
+        <select name="preset" class="input-preset" onchange="apply()">
+            <option value="0">单兵<\/option>
+            <option value="1">编队1<\/option>
+            <option value="2">编队2<\/option>
+            <option value="3">编队3<\/option>
+            <option value="4">编队4<\/option>
+            <option value="5">编队5<\/option>
+            <option value="6">编队6<\/option>
+            <option value="7">编队7<\/option>
+            <option value="8">编队8<\/option>
+            <option value="9">自动<\/option>
+        <\/select>
+        <label>延迟:<\/label>
+        <select name="delay" class="input-delay" onchange="apply()">
+            <option value="0">0秒<\/option>
+            <option value="1">1秒<\/option>
+            <option value="2">2秒<\/option>
+            <option value="3">3秒<\/option>
+            <option value="4">4秒<\/option>
+            <option value="5">5秒<\/option>
+            <option value="6">6秒<\/option>
+            <option value="7">7秒<\/option>
+            <option value="8">8秒<\/option>
+            <option value="9">9秒<\/option>
+        <\/select>
+        <input type="checkbox" name="limit" onclick="apply()"><label style="margin-right:10px">限定距离<\/label>
+        <label>指定:<\/label>
+        <input type="text" name="leader" class="input-leader" placeholder="玩家名字" onchange="apply()"><br>
+        <p><span name="info" class="span-info"><\/span><\/p>
+    <\/div>
+    <div id="6" class="panel">
+        <input type="checkbox" name="selected" onclick="apply()"><label class="label-text">黑暗精卫<\/label>
+        <label>次数:<\/label>
+        <div name="count">
+            <select name="list" class="count-list" onchange="listchange(this)">
+                <option style="display:none"><\/option>
+                <option value="10">10次<\/option>
+                <option value="50">50次<\/option>
+                <option value="99999">无限次<\/option>
+            <\/select>
+            <input name="edit" class="count-edit" onchange="editchange(this)">
+        <\/div>
+        <label>编队:<\/label>
+        <select name="preset" class="input-preset" onchange="apply()">
+            <option value="0">单兵<\/option>
+            <option value="1">编队1<\/option>
+            <option value="2">编队2<\/option>
+            <option value="3">编队3<\/option>
+            <option value="4">编队4<\/option>
+            <option value="5">编队5<\/option>
+            <option value="6">编队6<\/option>
+            <option value="7">编队7<\/option>
+            <option value="8">编队8<\/option>
+            <option value="9">自动<\/option>
+        <\/select>
+        <label>延迟:<\/label>
+        <select name="delay" class="input-delay" onchange="apply()">
+            <option value="0">0秒<\/option>
+            <option value="1">1秒<\/option>
+            <option value="2">2秒<\/option>
+            <option value="3">3秒<\/option>
+            <option value="4">4秒<\/option>
+            <option value="5">5秒<\/option>
+            <option value="6">6秒<\/option>
+            <option value="7">7秒<\/option>
+            <option value="8">8秒<\/option>
+            <option value="9">9秒<\/option>
+        <\/select>
+        <input type="checkbox" name="limit" onclick="apply()"><label style="margin-right:10px">限定距离<\/label>
+        <label>指定:<\/label>
+        <input type="text" name="leader" class="input-leader" placeholder="玩家名字" onchange="apply()">
+        <p><span name="info" class="label-info"><\/span><\/p>
+    <\/div>
+    <span id="state">未运行<\/span>
+    <button id="action" onclick="action()">启动<\/button>
+<\/body>
+<\/html>`
+
+
+//-------------------------------------------------------------------------------------------------
+//自动采集资源
+helper.pro.gatherResource && helper.pro.gatherResource.free()
+helper.pro.gatherResource = {
+    setting: [
+        {selected: !1, type: 0, option: 0},
+        {selected: !1, type: 0, option: 0},
+        {selected: !1, type: 0, option: 0},
+        {selected: !1, type: 0, option: 0},
+        {selected: !0, type: 1, option: 3},
+        {selected: !0, type: 2, option: 3},
+        {selected: !0, type: 1, option: 3},
+        {selected: !0, type: 2, option: 3}
+    ],
+    state: {
+        running: !1
+    },
+
+    _records(type) {
+        var a = ['谷仓', '炼油', '采金'],  o = []
+        __require("AllianceRecordController").default.instance.getDataByType(4).forEach(e=>ServerTime-e.tampTime < 14400 && e.msg.includes(a[type-1]) && o.push(e))
+        o.sort((d,e)=>{
+            var l1 = d.msg[d.msg.lastIndexOf("级")-1]
+            var l2 = e.msg[e.msg.lastIndexOf("级")-1]
+            return l1 != l2 && l2 - l1 || e.tampTime - e.tampTime
+        }) 
+        return o    
+    },
+
+    //编队检查
+    _precheck(preset) {
+        //单兵检查(含机甲)
+        if (0 == preset || 9 == preset) {
+            var one = __require("GameTools").default.getAttackerMyArmys().sort((t, e)=>{return t.ArmyData.power - e.ArmyData.power})[0]
+            if (!one || (one.battleMechaData && !helper.battle.mechaOk(one.battleMechaData.mechaId)))
+                return 0
+        }
+        //预设编队
+        if (0 < preset && preset < 9) { 
+            var march = UserData.PresetMarchData.getPreMarchByIndex(preset-1)
+            if (!march) return 0  
+    
+            //检查英雄
+            var heros = __require("HeroController").HeroController.getInstance().getHaveHeroCanMarchList()
+            for (var i = 0; i < march.HeroIds.length; ++i) if (!heros.find((e)=>{return e._id == march.HeroIds[i]})) return 0
+ 
+            //检查士兵
+            var armys = __require("GameTools").default.getAttackerMyArmys()
+            for (var group = {}, i = 0; i < armys.length; ++i) {var n=armys[i].ArmyData.id; group[n] = (group[n] ? group[n] : 0) + 1}
+            for (var e of march.Armys) {
+                if (e && e.ArmyId && e.isMecha && !helper.battle.mechaOk(e.mechaId)) return 0
+                if (e && e.ArmyId && !e.isMecha && (!group[e.ArmyId] || (group[e.ArmyId] -= e.Num)<0)) return 0
+            }
+        }
+        return 1
+    },
+
+    async _equipHeroSkills(heroId, type) {
+        var a = [[25235,25234,25035,25034], [25235,25233,25035,25033], [25235,25232,25035,25032], [25235,25236,25035,25036]][type-1]        
+        for(var i = 0; i < 4; i++) {
+            var hero = UserData.Heros[heroId], item = null, n = -1
+            UserData._items.forEach(e=>parseInt(e.ItemId\/100) == a[i] && e.Amount>0 && (!item || item.ItemId < e.ItemId) && (item = e))
+            if (hero && item) {
+                if (hero.SecondSkillList.find(e=>e.skillId == item.Data.para1)) continue    //已安装
+                if ((n = hero.SecondSkillList.findIndex(e=>e.skillId == 0)) < 0) break      //查找空槽
+                await send(RequestId.STUDY_HERO_SKILL, {heroId:heroId, index:n, itemId:item.ItemId, isBuffSlot:!1, skillsIndex:2})
+            }
+        }
+        UserData.Heros[heroId].SkillsIndex == 2 || await send(RequestId.ChangeHeroSkillsIndex, {heroId:heroId, skillsIndex:2})    //切到技能组2       
+    },
+
+    async _removeHeroSkills(heroId) {
+        var n = -1
+        while ((n = UserData.Heros[heroId].SecondSkillList.findIndex(e=>[21205,21206,21204,21203,21202,20205,20206,20204,20203,20202].includes(e.skillId))) >= 0) {
+            await send(RequestId.FORGET_HERO_SKILL, {heroId:heroId, index:n, isBuffSlot:!1, skillsIndex:2})
+        }
+        UserData.Heros[heroId].SkillsIndex == 1 || await send(RequestId.ChangeHeroSkillsIndex, {heroId:heroId, skillsIndex:1})    //切回技能组1      
+    },
+
+    async _equipSkills(preset, type) {
+        var march = UserData.PresetMarchData.getPreMarchByIndex(preset-1)
+        if (march && type) {
+            for (var i = 0; i < march.HeroIds.length; i++) await this._equipHeroSkills(march.HeroIds[i], type)
+        }
+    },
+
+    async _removeSkills(preset) {
+        var march = UserData.PresetMarchData.getPreMarchByIndex(preset-1)
+        if (march) {
+            for (var i = 0; i < march.HeroIds.length; i++) await this._removeHeroSkills(march.HeroIds[i])
+        }
+    },
+
+    async _getTileInfo(p) {
+        var c = __require("NWorldMapController").default.instance
+        var o = p && await send(RequestId.GET_WORLD_INFO, {x: p.x, y: p.y, k: UserData.ServerId, marchInfo: !1, viewLevel: 0})
+        p = o && o.pointList && o.pointList.find(e=>e.x == p.x && e.y == p.y)
+        return p && (c.updateTileInfo(p, 0), c.getTileInfoByCoord(p.x, p.y, p.k, 0))
+    },
+
+    async _getTowerInfo(ti) {
+        return await send(RequestId.GET_TOWERINFO, {id: ti.extData.id})
+    },
+
+    async _marchTower(preset) {
+        var context = helper.battle.backup()
+        try {
+            var c = __require("TableManager").TABLE.getTableDataById(__require("TableName").TableName.MAP_BUILDING, this.tileInfo.extData.bid + "") 
+            var o = Object.assign(new(__require("NWorldTowerPopup").default), {_tileInfo: this.tileInfo, _towerInfo: this.towerInfo, _cfg: c})
+            o.AttackTowerinfo(__require("BattleData").BattleType.TOWER_COLLECT)  //采集机械田
+            return helper.battle.setup(preset, c.force_capacity - this.towerInfo.army_size) && helper.battle.march()    //设置英雄和士兵并出征
+        }
+        finally {
+            helper.battle.restore(context)
+        }
+    },
+
+    async _gatherTower(preset) {
+        if (await helper.battle.mutex.acquire(2000)) {
+            try {
+                return await this._marchTower(preset)        //出征
+            }
+            finally {
+                helper.battle.mutex.release()
+            }
+        }
+    },
+
+    //是否存在自己行军
+    _existMyMarch(point) {
+        for (var r in __require("NWorldMapMarchModel").default.instance.myMarch) {
+            var o = __require("NWorldMapData").default.instance.marches[r];
+            if (o && o.target_tx == point.x && o.target_ty == point.y) return !0
+        }
+        return !1
+    },
+
+    //机械田空间
+    _towerCapacity(ti) {
+        var o = __require("TableManager").TABLE.getTableDataById(__require("TableName").TableName.MAP_BUILDING, ti.extData.bid + "")
+        return o && o.force_capacity 
+    },
+
+    async _marchField(preset) {
+        var context = helper.battle.backup()
+        try {
+            var o = Object.assign(new(__require("NWorldResourcePopup").default), {_tileInfo: this.tileInfo, _resInfo: this.resInfo})
+            o.Attack()  // 普通采集
+            return helper.battle.setup(preset, 9999) && helper.battle.march()  //设置英雄和士兵并出征
+        }
+        finally {
+            helper.battle.restore(context)
+        }
+    },
+
+    async _gatherField(preset) {
+        if (await helper.battle.mutex.acquire(2000)) {
+            try {
+                return await this._marchField(preset)        //出征
+            }
+            finally {
+                helper.battle.mutex.release()
+            }
+        }
+    },
+
+    async _searchField(type) {
+        for(var i = type == 4 ? 3: 5; i >= 1; i--) {
+            var t  = [701, 501, 101, 1600][type-1]
+            var o = await send(RequestId.WORLD_SEARCH_MONSTER, {groupType:t+i, maxLevel:i, minLevel:i, pointType:2})
+            if (o && o.point && o.point.r) return o.point
+        }
+    },
+
+    async _gatherWithSkills(preset, type, kind) {
+        //切换超级矿工
+        if (UserData.UsingCastleFace != 1710700 && UserData.MyCastleFace[1710700]) {
+            await send(RequestId.USE_CASTLE_FACE, {skinId:1710700, special:0})
+        } 
+        
+        //安装采集技能
+        await this._equipSkills(preset, type)
+        
+        //采集行军出征
+        switch (kind) {
+            case 1: var o = await this._gatherTower(preset); break
+            case 2: var o = await this._gatherField(preset); break
+        }
+
+        //恢复英雄技能
+        await this._removeSkills(preset)
+        return o
+    },
+
+    async _gather(preset, type, option) {
+        //机械采集
+        if (option == 1 || option == 3) {
+            for(var e of this._records(type)) {
+                var p = e.targetPosArr[0]
+                if (!this._existMyMarch(p)) {
+                    this.tileInfo = await this._getTileInfo(p)                //方格信息
+                    this.towerInfo = await this._getTowerInfo(this.tileInfo)  //塔信息
+                    var o = this._towerCapacity(this.tileInfo) - this.towerInfo.army_size >= 10 && await this._gatherWithSkills(preset, type, 1)
+                    if (o) return o
+                }
+            }  
+        }
+        //普通采集
+        if (option == 2 || option == 3) {
+            var p = await this._searchField(type)
+            if(p) {
+                this.tileInfo = await this._getTileInfo(p)
+                this.resInfo = __require("NWorldMapModel").default.instance.getResourceInfoByTileId(this.tileInfo.id)
+                var o = await this._gatherWithSkills(preset, type, 2)
+                return o
+            }
+        }
+    },
+
+    async _execute() {
+        //var cur_skin = UserData.UsingCastleFace
+        for(var i = 0; i < this.setting.length; i++) {
+            var s = this.setting[i]
+            if (s.selected && s.type && s.option && (UserData.myMarchNum < UserData.myMarchNumMAX) && this._precheck(i+1)) {           
+                var o = await this._gather(i+1, s.type, s.option)
+                o && o.marchInfo || sleep(5000)
+            }
+        }
+        //恢复当前皮肤  -- 不能立即恢复当前皮肤，因为矿工增益在下田时点生效（不是在出征时点）
+        //(UserData.UsingCastleFace != cur_skin) && await send(RequestId.USE_CASTLE_FACE, {skinId:cur_skin, special:0})
+    },
+
+    async _onTimer() {
+        if (!this.busy) {
+            try {this.busy = 1, await this._execute()} finally{this.busy = 0}
+        }
+    },
+
+    _start() {
+        this.timer || (this.timer = setInterval(this._onTimer.bind(this), 1000))
+    },
+
+    _stop() {
+        this.timer && (clearInterval(this.timer), this.timer = 0)
+    },
+
+    _update() {
+        this._save()
+        this._render()
+    },
+
+    _save() {
+        setItem("gather-resource", JSON.stringify({setting:this.setting, state:this.state}))
+    },
+
+    async _load() {
+        var o = await getItem("gather-resource")
+        o && (o = JSON.parse(o)) && (this.setting = o.setting, this.state.running = o.state.running)
+    },
+
+    _render() {
+        var iframe = helper.dialog.iframe
+        iframe && iframe.contentWindow.render(this.setting, this.state)        
+    },
+
+    start() {
+        !this.state.running && (this.state.running = !0, this._start(), this._update())
+    },
+
+    stop() {
+        this.state.running && (this.state.running = !1, this._stop(), this._update())
+    },
+
+    apply(setting) {
+        for (var i=0; i<8; ++i) {    
+            this.setting[i].selected = setting[i].selected
+            this.setting[i].type = setting[i].type
+            this.setting[i].option = setting[i].option
+        }
+        this._update()
+    },
+
+    async init() {
+        await this._load()
+        this.state.running && this._start()
+    },
+
+    free() {
+        this._stop()
+    },
+
+    open() {
+        helper.dialog.open({name:"gather-resource", width:535, height:315, html:this.html})
+        this._render()
+    }
+}
+
+helper.pro.gatherResource.html = String.raw
+`<html charset="UTF-8">
+<head>
+<style>
+    body{line-height:26px; vertical-align:top; font-size:14px; font-family:"Helvetica","Lucida Console","Microsoft soft";}
+    h3{display:block; margin-top:12px; margin-bottom:8px; text-align:center; width:100%}
+    label{margin-left:2px; margin-right:2px;}
+    label.caption{display:inline-block; width:80px;}
+    span{margin-left:20px; margin-right:0px;}
+    input{color:#333;border:1px solid #999; border-radius:3px; outline-style:none; margin-right:12px; padding-top:2px; height:20px;}
+    input[type="checkbox"]{margin-right:1px; vertical-align:top; margin-top:6px; width:14px; height:14px;}
+    input[type="radio"]{margin-right:1px; vertical-align:top; margin-top:6px; margin-left:12px; width:14px; height:14px;}
+    select{color:#333; border:1px solid #999; border-radius:4px; outline-style:none; margin-left:0px; padding-top:1px; height:20px; }
+    button{border:1px solid #999; border-radius:3px; outline-style:none; text-align:center; margin-top:0px; width:60px; height:22px;}
+    button:hover{background-color:#ccc;} button:focus{background-color:#ccc;} button:active{transform: translateY(1px);}
+    input::-webkit-input-placeholder{color: #aaa;} div span{margin-left:12px;}
+    div.panel{border:1px solid silver; border-radius:6px; margin:8px; padding:4px; padding-left:8px; padding-right:0px; box-shadow: 3px 3px 6px gray;}
+    #state{margin-left:10px; margin-top:8px; text-align:center; height:20px}
+    #action{margin-left:160px; margin-top:8px; text-align:center; width:80px;}
+<\/style>
+<\/script>      
+<script>
+    function $(a) {
+        return a && '#'==a[0] && document.getElementById(a.substring(1))
+    }
+
+    function apply() {
+        var setting = []
+        for (var i=0; i<8; ++i) {
+            var selected = !1, type = 0, option = 0
+            selected = $("#team-"+(i+1)).children[0].checked
+            type = selected && Number($("#team-"+(i+1)).children[2].children[1].value)
+            option = selected && (
+                $("#team-"+(i+1)).children[2].children[2].checked && 1 ||
+                $("#team-"+(i+1)).children[2].children[3].checked && 2 ||
+                $("#team-"+(i+1)).children[2].children[4].checked && 3
+            )
+            setting.push({selected: selected, type: type, option: option})
+        }
+        parent.helper.pro.gatherResource.apply(setting);
+    }
+
+    function render(setting, state) {
+        var html=""
+        for(var i=0; i<8; ++i) {
+            $("#team-"+(i+1)).children[0].checked = setting[i].selected
+            $("#team-"+(i+1)).children[2].style.display = setting[i].selected? "inline-block" : "none"
+            $("#team-"+(i+1)).children[2].children[1].value = setting[i].type
+            $("#team-"+(i+1)).children[2].children[2].checked = setting[i].option==1
+            $("#team-"+(i+1)).children[2].children[3].checked = setting[i].option==2
+            $("#team-"+(i+1)).children[2].children[4].checked = setting[i].option==3
+        }
+
+        $("#state").innerText = state.running ? "运行中" : "未运行"
+        $("#state").style.backgroundColor = state.running ? "greenyellow" : "#aaa"
+        $("#state").style.borderRadius = "2px"
+
+        $("#action").innerText = state.running ? "停止" : "启动";
+    }
+
+    function action() {
+        var o = parent.helper.pro.gatherResource
+        o.state.running ? o.stop() : o.start()
+    }
+<\/script>
+<\/head>
+<body>
+    <h3>自动采集资源<\/h3>
+    <div class="panel">
+        <div id="team-1">
+            <input type="checkbox" onclick="apply()"><label>编队1<\/label>
+            <div style="display:inline-block">
+                <span>资源类型:<\/span>
+                <select value="1" onchange="apply()">
+                    <option value="1">农田<\/option>
+                    <option value="2">油田<\/option>
+                    <option value="3">金矿<\/option>
+                    <option value="4">雷神矿<\/option>
+                <\/select>
+                <input type="radio" name="option-1" onclick="apply()">仅机械田<\/input>
+                <input type="radio" name="option-1" onclick="apply()">仅普通田<\/input>
+                <input type="radio" name="option-1" onclick="apply()">优先机械田<\/input>
+            <\/div>
+        <\/div>
+        <div id="team-2">
+            <input type="checkbox" onclick="apply()"><label>编队2<\/label>
+            <div style="display:inline-block">
+                <span>资源类型:<\/span>
+                <select value="1" onchange="apply()">
+                    <option value="1">农田<\/option>
+                    <option value="2">油田<\/option>
+                    <option value="3">金矿<\/option>
+                    <option value="4">雷神矿<\/option>
+                <\/select>
+                <input type="radio" name="option-2" onclick="apply()">仅机械田<\/input>
+                <input type="radio" name="option-2" onclick="apply()">仅普通田<\/input>
+                <input type="radio" name="option-2" onclick="apply()">优先机械田<\/input>
+            <\/div>
+        <\/div>
+        <div id="team-3">
+            <input type="checkbox" onclick="apply()"><label>编队3<\/label>
+            <div style="display:inline-block">
+                <span>资源类型:<\/span>
+                <select value="1" onchange="apply()">
+                    <option value="1">农田<\/option>
+                    <option value="2">油田<\/option>
+                    <option value="3">金矿<\/option>
+                    <option value="4">雷神矿<\/option>
+                <\/select>
+                <input type="radio" name="option-3" onclick="apply()">仅机械田<\/input>
+                <input type="radio" name="option-3" onclick="apply()">仅普通田<\/input>
+                <input type="radio" name="option-3" onclick="apply()">优先机械田<\/input>
+            <\/div>
+        <\/div>
+        <div id="team-4">
+            <input type="checkbox" onclick="apply()"><label>编队4<\/label>
+            <div style="display:inline-block">
+                <span>资源类型:<\/span>
+                <select value="1" onchange="apply()">
+                    <option value="1">农田<\/option>
+                    <option value="2">油田<\/option>
+                    <option value="3">金矿<\/option>
+                    <option value="4">雷神矿<\/option>
+                <\/select>
+                <input type="radio" name="option-4" onclick="apply()">仅机械田<\/input>
+                <input type="radio" name="option-4" onclick="apply()">仅普通田<\/input>
+                <input type="radio" name="option-4" onclick="apply()">优先机械田<\/input>
+            <\/div>
+        <\/div>
+        <div id="team-5">
+            <input type="checkbox" onclick="apply()"><label>编队5<\/label>
+            <div style="display:inline-block">
+                <span>资源类型:<\/span>
+                <select value="1" onchange="apply()">
+                    <option value="1">农田<\/option>
+                    <option value="2">油田<\/option>
+                    <option value="3">金矿<\/option>
+                    <option value="4">雷神矿<\/option>
+                <\/select>
+                <input type="radio" name="option-5" onclick="apply()">仅机械田<\/input>
+                <input type="radio" name="option-5" onclick="apply()">仅普通田<\/input>
+                <input type="radio" name="option-5" onclick="apply()">优先机械田<\/input>
+            <\/div>
+        <\/div>
+        <div id="team-6">
+            <input type="checkbox" onclick="apply()"><label>编队6<\/label>
+            <div style="display:inline-block">
+                <span>资源类型:<\/span>
+                <select value="1" onchange="apply()">
+                    <option value="1">农田<\/option>
+                    <option value="2">油田<\/option>
+                    <option value="3">金矿<\/option>
+                    <option value="4">雷神矿<\/option>
+                <\/select>
+                <input type="radio" name="option-6" onclick="apply()">仅机械田<\/input>
+                <input type="radio" name="option-6" onclick="apply()">仅普通田<\/input>
+                <input type="radio" name="option-6" onclick="apply()">优先机械田<\/input>
+            <\/div>
+        <\/div>
+        <div id="team-7">
+            <input type="checkbox" onclick="apply()"><label>编队7<\/label>
+            <div style="display:inline-block">
+                <span>资源类型:<\/span>
+                <select value="1" onchange="apply()">
+                    <option value="1">农田<\/option>
+                    <option value="2">油田<\/option>
+                    <option value="3">金矿<\/option>
+                    <option value="4">雷神矿<\/option>
+                <\/select>
+                <input type="radio" name="option-7" onclick="apply()">仅机械田<\/input>
+                <input type="radio" name="option-7" onclick="apply()">仅普通田<\/input>
+                <input type="radio" name="option-7" onclick="apply()">优先机械田<\/input>
+            <\/div>
+        <\/div>
+        <div id="team-8">
+            <input type="checkbox" onclick="apply()"><label>编队8<\/label>
+            <div style="display:inline-block">
+                <span>资源类型:<\/span>
+                <select value="1" onchange="apply()">
+                    <option value="1">农田<\/option>
+                    <option value="2">油田<\/option>
+                    <option value="3">金矿<\/option>
+                    <option value="4">雷神矿<\/option>
+                <\/select>
+                <input type="radio" name="option-8" onclick="apply()">仅机械田<\/input>
+                <input type="radio" name="option-8" onclick="apply()">仅普通田<\/input>
+                <input type="radio" name="option-8" onclick="apply()">优先机械田<\/input>
+            <\/div>
+        <\/div>
+    <\/div>
+    <span id="state">未运行<\/span>
+    <button id="action" onclick="action()">启动<\/button>
+<\/body>
+<\/html>`
+
+
+//-------------------------------------------------------------------------------------------------
+//捐打联盟机甲
+helper.pro.allianceMecha && helper.pro.allianceMecha.free()
+helper.pro.allianceMecha = {
+    setting:{donate:!0, amount:1, attack:!0, preset:0, precheck:!0, energy:!0},
+    state:{running:!1},
+
+    async _fight(ti) {
+        if (await helper.battle.mutex.acquire(2000) ) {
+            try {
+                var context = helper.battle.backup()
+                var o = new(__require("WorldBossDetailPanel").default)
+                Object.assign(o, {tileInfo:ti, bossId:ti.extData.bossId}).onClickAttackBtn()
+                return helper.battle.setup(this.setting.preset, 9999) && helper.battle.march()            //设置英雄和士兵并出征
+             }
+            finally {
+                helper.battle.restore(context);
+                helper.battle.mutex.release();
+            }
+        }
+    },
+
+    async _tileInfo(p) {
+        var c = __require("NWorldMapController").default.instance
+        var o = p && await send(RequestId.GET_WORLD_INFO, {x: p.x, y: p.y, k: UserData.ServerId, marchInfo: !1, viewLevel: 0})
+        p = o && o.pointList && o.pointList.find(e=>e.x == p.x && e.y == p.y)
+        return p && (c.updateTileInfo(p, 0), c.getTileInfoByCoord(p.x, p.y, p.k, 0))
+    },
+
+    //补充体力
+   _charge() {
+    if (this.setting.energy) {
+        for(var e of UserData.getItemList()) {
+            if (6 === e.Data.type && e.Amount > 0) {
+                    return send(RequestId.ITEM_USE, {amount:1, itemid:e.ItemId});
+                }
+            }
+        }
+        return 0
+    },
+
+    //体力检查  
+    async _energy(ti) {
+        //计算任务体力
+        var y = __require("TableManager").TABLE.getTableDataById("monster_group", ti.extData.bossId.toString())
+        var t = __require("FWSTool").Obj.getPropertyByNames(y, 0, "cost_energy")
+        var s = UserData.getEnergy(1).Point
+        return (t <= s ? 1 : await this._charge() ? 2 : 0)
+    },
+
+    //检查编队
+    _precheck() {
+        //单兵检查(含机甲)
+        if (0 == this.setting.preset || 9 == this.setting.preset) {
+            var one = __require("GameTools").default.getAttackerMyArmys().sort((t, e)=>{return t.ArmyData.power - e.ArmyData.power})[0];
+            if (!one || (one.battleMechaData && !helper.battle.mechaOk(one.battleMechaData.mechaId)))
+                return 0
+        }
+        //预设编队检查
+        if (0 < this.setting.preset && this.setting.preset < 9 && this.setting.precheck) { 
+            var heros = __require("HeroController").HeroController.getInstance().getHaveHeroCanMarchList()
+            var armys = __require("GameTools").default.getAttackerMyArmys()
+            var march = UserData.PresetMarchData.getPreMarchByIndex(this.setting.preset-1)
+            if (!march) return 0  
+
+            //检查英雄
+            for (var i = 0; i < march.HeroIds.length; ++i) if (!heros.find((e)=>{return e._id == march.HeroIds[i]})) return 0
+
+            //检查士兵
+            for (var group = {}, i = 0; i < armys.length; ++i) {var n=armys[i].ArmyData.id; group[n] = (group[n] ? group[n] : 0) + 1}
+            for (var e of march.Armys) {
+                if (e && e.ArmyId && e.isMecha && !helper.battle.mechaOk(e.mechaId)) return 0
+                if (e && e.ArmyId && !e.isMecha && (!group[e.ArmyId] || (group[e.ArmyId] -= e.Num)<0)) return 0
+            }
+        }
+        return 1
+    },
+
+    async _attack(boss) {
+        if (UserData.myMarchNum < UserData.myMarchNumMAX && this._precheck()) {
+            var o = await send(RequestId.ALLIANCE_GET_MEMBER_RANK_LIST, {allianceId: UserData.Alliance.Aid, start: 0, end: 30, type: 11})  //伤害
+            if (o && !o.myRank) {
+                var ti = await this._tileInfo({x:boss.x, y:boss.y})
+                ti && await this._energy(ti) && await this._fight(ti)
+            }
+        } 
+    },
+
+    async _donate(boss, today) {
+        var TABLE = __require("TableManager").TABLE
+        var TableName = __require("TableName").TableName
+        var GameTools = __require("GameTools").default
+
+        //获取已捐数量,计算待捐数量
+        var n = this.setting.amount
+        var o = await send(RequestId.ALLIANCE_GET_MEMBER_RANK_LIST, {allianceId: UserData.Alliance.Aid, start: 0, end: 30, type: 10})  //捐献
+        o && o.myRank && (n = n - Math.floor(o.myRank.power)) 
+        
+        //免费捐献
+        if (n > 0 && today.free) {
+            o = await send(RequestId.ALLIANCE_BOSS_DONATE, {count: 0})
+            o && (n = n - o.count)
+        }
+
+        //计算可捐数量
+        o = TABLE.getTableDataById(TableName.Alliance_Boss, boss.bossId.toString())
+        n = Math.min(n, o.num - boss.exp)
+        n = Math.min(n, Number(GameTools.getDataConfigData(25008)) - today.time)
+        n = Math.min(n, UserData.getItemAmount(3200001))
+
+        //捐献
+        n > 0 && await send(RequestId.ALLIANCE_BOSS_DONATE, {count: n})
+    },
+
+    async _execute() {
+        if (UserData.Alliance.JoinTime + parseInt(__require("GameTools").default.getDataConfigData(25009)) <= ServerTime) {
+            var o = await send(RequestId.ALLIANCE_BOSS_GET_INFO, {})
+            o && o.allianceBoss && (
+                this.setting.donate && 0 == o.allianceBoss.state && await this._donate(o.allianceBoss, {free:o.todayFree, time:o.todayTime}),
+                this.setting.attack && (1 == o.allianceBoss.state || 4 == o.allianceBoss.state) && await this._attack(o.allianceBoss)
+            )
+        }
+    },
+
+    _onTimer() {
+        this._execute()
+    },
+
+    _start() {
+        this.timer || (this.timer = setInterval(this._onTimer.bind(this), 180000))
+    },
+
+    _stop() {
+        this.timer && (clearInterval(this.timer), this.timer = 0)
+    },
+
+    _update() {
+        this._save()
+        this._render()
+    },
+
+    _save() {
+        setItem("alliance-mecha", JSON.stringify({setting:this.setting, state:this.state}))        
+    },
+
+    async _load() {
+        var o = await getItem("alliance-mecha")
+        o && (o = JSON.parse(o)) && (this.setting = o.setting, this.state = o.state)
+    },
+
+    _render() {
+        var iframe = helper.dialog.iframe;
+        if (iframe && iframe.name == "alliance-mecha") {
+            iframe.contentWindow.render(this.setting, this.state)
+        }
+    },
+
+    start() {
+        !this.state.running && (this.state.running = !0, this._start(), this._update())
+    },
+     
+    stop() {
+        this.state.running && (this.state.running = !1, this._stop(), this._update())
+    },
+     
+    apply(setting) {
+        this.setting = setting
+        this._update()
+    },
+     
+    async init() {
+        await this._load()
+        this.state.running && this._start()
+    },
+
+    free() {
+        this._stop()
+    },
+
+    open() {
+        helper.dialog.open({name:"alliance-mecha", width:480, height:175, html:this.html})
+        this._render() 
+    }
+}
+
+helper.pro.allianceMecha.html = String.raw
+`<html charset="UTF-8">
+<head>
+<style>
+    body{line-height:30px; vertical-align:top; font-size:14px; font-family:"Helvetica","Lucida Console","Microsoft soft";}
+    h3{display:block; margin-top:12px; margin-bottom:8px; text-align:center; width:100%}
+    label{margin-left:2px; margin-right:2px;}
+    label.counter{margin-left:4px; width:100%;}
+    span{margin-left:20px; margin-right:0px;}
+    input{color:#333;border:1px solid #999; border-radius:3px; outline-style:none; margin-right:12px; padding-top:2px; height:20px;}
+    input[type="checkbox"]{margin-right:1px; vertical-align:top; margin-top:8px; width:14px; height:14px;}
+    select{color:#333; border:1px solid #999; border-radius:4px; outline-style:none; margin-left:0px; padding-top:1px; height:20px; }
+    button{border:1px solid #999; border-radius:3px; outline-style:none; text-align:center; margin-top:0px; width:60px; height:22px;}
+    button:hover{background-color:#ccc;} button:focus{background-color:#ccc;} button:active{transform: translateY(1px);}
+    input::-webkit-input-placeholder{color: #aaa;}
+    #counter{display:inline-block; color:green; margin-left:123px; width:130px;}
+    #state{margin-left:10px; margin-top:8px; text-align:center; height:20px}
+    #action{margin-left:140px; margin-top:8px; text-align:center; width:80px;}
+    div.panel{border:1px solid silver; border-radius:6px; margin:8px; padding:4px; padding-top:8px; padding-left:12px; box-shadow: 3px 3px 6px gray;}
+    .combo-box{display:inline-block; position:relative;} .combo-list{width:70px;} .combo-edit{position:absolute; padding-top:1px; width:50px; height:18px; left:1px; top:1px; border:0px;}
+<\/style>
+<\/script>      
+<script>
+    function $(a) {
+        return a && '#'==a[0] && document.getElementById(a.substring(1))
+    }
+
+    function editchange(edit) {
+        edit.setAttribute("value", Number(edit.value.replace('个',''))); 
+        apply();   
+    }
+
+    function listchange(list) {
+        var edit = list.parentNode.children["edit"];
+        var i = list.selectedIndex;
+        edit.value = list.options[i].innerText;
+        edit.setAttribute("value", list.options[i].value);
+        list.selectedIndex = 0;
+        apply();
+    }
+
+    function apply() {
+        var setting = {}
+        setting.donate = $("#donate").checked
+        setting.amount = Number($("#amount").children["edit"].getAttribute("value"))
+        setting.attack = $("#attack").checked
+        setting.preset = Number($("#preset").value)
+        setting.precheck = $("#precheck").checked
+        setting.energy = $("#energy").checked
+        parent.helper.pro.allianceMecha.apply(setting)
+    }
+
+    function render(setting, state) {
+        $("#donate").checked = setting.donate
+        $("#amount").children["edit"].value = setting.amount + '个'
+        $("#amount").children["edit"].setAttribute("value", setting.amount)
+
+        $("#attack").checked = setting.attack
+        $("#preset").value = setting.preset
+        $("#precheck").checked = setting.precheck
+        $("#energy").checked = setting.energy
+
+        $("#state").innerText = state.running ? "运行中" : "未运行"
+        $("#state").style.backgroundColor = state.running ? "greenyellow" : "#aaa"
+        $("#state").style.borderRadius = "2px"
+
+        $("#action").innerText = state.running ? "停止" : "启动"
+    }
+
+    function action() {
+        var o = parent.helper.pro.allianceMecha
+        o.state.running ? o.stop() : o.start()
+    }
+<\/script>
+<\/head>
+<body>
+    <h3>捐打联盟机甲<\/h3>
+    <div class="panel">
+        <div>
+            <input type="checkbox" id="donate" onclick="apply()"><label class="label-text">捐献碎片<\/label>
+            <span><\/span>
+            <label>数量:<\/label>
+            <div id="amount" class="combo-box">
+                <select name="list" class="combo-list" onchange="listchange(this)">
+                    <option style="display:none"><\/option>
+                    <option value="1">1个<\/option>
+                    <option value="2">2个<\/option>
+                    <option value="3">3个<\/option>
+                <\/select>
+                <input name="edit" class="combo-edit" onchange="editchange(this)">
+            <\/div>
+        <\/div>
+        <div>
+            <input type="checkbox" id="attack" onclick="apply()"><label class="label-text">攻击机甲<\/label>
+            <span><\/span>
+            <label>编队:<\/label>
+            <select class="combo-list" id="preset" onchange="apply()">
+                <option value="0">单兵<\/option>
+                <option value="1">编队1<\/option>
+                <option value="2">编队2<\/option>
+                <option value="3">编队3<\/option>
+                <option value="4">编队4<\/option>
+                <option value="5">编队5<\/option>
+                <option value="6">编队6<\/option>
+                <option value="7">编队7<\/option>
+                <option value="8">编队8<\/option>
+                <option value="9">自动<\/option>
+            <\/select>
+            <span><\/span>
+            <input type="checkbox" id="precheck" onclick="apply()"><label>检查行军<\/label>
+            <span><\/span>
+            <input type="checkbox" id="energy" onclick="apply()"><label>补充体力<\/label>
+        <\/div>
+    <\/div>
+    <span id="state">未运行<\/span>
+    <button id="action" onclick="action()">启动<\/button>
+<\/body>
+<\/html>`
+
+
+//-------------------------------------------------------------------------------------------------
+//代领遗迹道具
+helper.pro.fortressItem && helper.pro.fortressItem.free()
+helper.pro.fortressItem = {
+    setting: {
+        group:{
+            1: [8301701, 8301702, 8301703, 8301704, 8301705, 8301706], 
+            2: [8301707, 8301708, 8301709, 8301710, 8301711, 8301712], 
+            3: [8301721, 8301713, 8301714, 8301715, 8301716, 8301717, 8301718, 8301719, 8301720],
+            4: [8301730, 8301722, 8301723, 8301724, 8301725, 8301726, 8301727, 8301728, 8301729, 8301731],
+            5: [8301740, 8301732, 8301733, 8301734, 8301735, 8301736, 8301737, 8301738, 8301739, 8301741, 8301742, 8301743, 8301744],
+            6: [8301753, 8301745, 8301746, 8301747, 8301748, 8301749, 8301750, 8301751, 8301752, 8301754, 8301755, 8301756, 8301757]
+        }
+    },
+    state: {
+        running: !1
+    },
+    history: [],
+    
+    _log(id) {
+        this.history.splice(0, this.history.length-29)
+        this.history.push({time: ServerTime, id: id})
+        this._update()    
+    },
+
+    _iname(id) {
+        var RewardController = __require("RewardController").RewardController
+        var LocalManager = __require("LocalManager")
+        
+        var a = RewardController.Instance.getRewardsArrById(Number(id))
+        return a && a[0] ? a[0].count +'个'+ LocalManager.LOCAL.getText(a[0].name) : ''
+    },
+
+    async _execute() {
+        var TABLE = __require("TableManager").TABLE
+        var TableName = __require("TableName").TableName
+
+        var a = UserData.getCurServerWorldSiteList()
+        for(var r in a) {
+            if (4 == a[r].DistrictData.function && 2 == a[r].State && UserData.Alliance.Aid == a[r]._trueOwnerAid) {
+                //道具遗迹编号
+                var wonderId = a[r].DistrictData.id
+
+                //获取遗迹道具列表
+                var o = await send(RequestId.GET_FORTRESS_CHOOSE_ITEM_REWARD_DATA, {wonderId: wonderId})
+
+                //入盟时间满足要求(3小时）且有领取次数
+                var d = o && TABLE.getTableDataById(TableName.sp_fortress_item, String(o.id))
+                var items = this.setting.group[o.id]
+                if (o && d && ServerTime - o.joinTime > d.join_time && d.choose_num - o.have.length > 0) {
+                    //领取道具索引
+                    var index = -1
+                    for (var m = 65535, i = 0; i<o.select.length; i++) {
+                        //第一次出现则插入设置项（最低优先级）
+                        var n = items.findIndex(id=>id == o.select[i])
+                        n < 0 && (n = items.push(o.select[i]) - 1, this._update())
+                        m > n && (m = n, index = i)
+                    }
+
+                    //领取遗迹道具
+                    var id = o.select[index] 
+                    o = await send(RequestId.FORTRESS_CHOOSE_ITEM_REWARD, {wonderId: wonderId, index: index})
+                    o && o.reward && this._log(id)
+                }
+            }
+        }
+    },
+
+    _onTimer() {
+        this._execute()
+    },
+
+    _start() {
+        this.timer || (this.timer = setInterval(this._onTimer.bind(this), 180000))
+    },
+    
+    _stop() {
+        this.timer && (clearInterval(this.timer), this.timer = 0)
+    },
+        
+    _update() {
+        this._save()
+        this._render()
+    },
+
+    _save() {
+        setItem("fortress-item", JSON.stringify({setting:this.setting, state:this.state, history:this.history}))
+    },
+
+    async _load() {
+        var o = await getItem("fortress-item")
+        o && (o = JSON.parse(o)) && (this.setting =o.setting, this.state = o.state, this.history = o.history)
+    },
+
+    _render() {
+        function timestr(t) {var a=new Date(t*1000); return (a.getMonth()+1)+'-'+a.getDate()+" "+a.getHours()+":"+a.getMinutes().toString().padStart(2,'0')+":"+a.getSeconds().toString().padStart(2,'0')}
+        function logstr(e) {return timestr(e.time) + '  领取' + this._iname(e.id)}
+   
+        var iframe = helper.dialog.iframe;
+        if (iframe && iframe.name == "fortress-item") {
+            var group = {}
+            for (var i in this.setting.group) {
+                var items = []
+                this.setting.group[i].forEach(e=>items.push({id:e, name:this._iname(e)}))
+                group[i] = items
+            }
+            var history = []
+            for (var i = this.history.length-1; i >= 0; i--) history.push(logstr.call(this, this.history[i]))
+            iframe.contentWindow.render(group, history, this.state)
+        }
+    },
+
+    start() {
+        !this.state.running && (this.state.running = !0, this._start(), this._update())
+    },
+     
+     stop() {
+        this.state.running && (this.state.running = !1, this._stop(), this._update())
+    },
+     
+    apply(i,items) {
+        this.setting.group[i] = items
+        this._save()
+    },
+     
+    async init() {
+        await this._load()
+        this.state.running && this._start()
+    },
+
+    free() {
+        this._stop()
+    },
+
+    dayInit() {
+        this.state.counter = [], this._update()
+    },
+
+    open() {
+        helper.dialog.open({name:"fortress-item", width:560, height:415, html:this.html})
+        this._render()
+    }
+}
+
+helper.pro.fortressItem.html = String.raw
+`<html charset="UTF-8">
+<head>
+<style>
+    body{line-height:30px; vertical-align:top; font-size:14px; font-family:"Helvetica","Lucida Console","Microsoft soft";}
+    h3{display:block; margin-top:12px; margin-bottom:8px; text-align:center; width:100%}
+    div.panel{border:1px solid silver; border-radius:6px; margin:8px; padding:4px; padding-left:0px; padding-right:0px; box-shadow: 3px 3px 6px gray;}
+    button{border:1px solid #999; border-radius:3px; outline-style:none; text-align:center; margin-top:0px; width:60px; height:22px;}
+    button:hover{background-color:#ccc;} button:focus{background-color:#ccc;} button:active{transform: translateY(1px);}
+    ul{display: flex; margin:4px; list-style-type: none; flex-flow: wrap; padding-inline-start: 0px;}
+    li{margin:4px; margin-left:8px; padding-left:4px; text-align: left; width: 150px; height: 26px; background: #ddd; border-radius:2px;}
+    .list .moving{background: transparent; color: transparent; border: 1px dashed #ddd;}  
+    #group{color:#333;border:1px solid #ccc; border-radius:3px; outline-style:none; margin-left:12px; margin-top:6px; width:500px;}
+    #content{height:180px; margin-top:4px; padding-left:4px; overflow-x:hide; overflow-y:auto;}
+    #history{height:75px; line-height:25px; padding-left:4px; overflow-x:hide; overflow-y:auto;} 
+    #state{margin-left:10px; margin-top:8px; text-align:center; height:20px}
+    #action{margin-left:175px; margin-top:8px; text-align:center; width:80px;}
+<\/style>
+<script>
+    function $(a) {
+        return a && '#'==a[0] && document.getElementById(a.substring(1))
+    }
+
+    function changegroup() {
+        parent.helper.pro.fortressItem._render()        
+    }
+
+    function apply() {
+        var i = $("#group").value, items = []
+        for(var li of $("#items").children) items.push(li.value)
+        parent.helper.pro.fortressItem.apply(i, items)
+    }
+
+    function render(group, history, state) {
+        $("#items").innerHTML = ""
+        var i = $("#group").value
+        for(var e of group[i]) {
+            var li = document.createElement('li')
+            li.draggable= !0
+            li.value = e.id
+            li.innerText = e.name
+
+            $("#items").appendChild(li)
+        }
+
+        var html = ""
+        history.forEach(e=>html += "" == html ? e : "<br>"+e)
+        $("#history").innerHTML = html
+
+        $("#state").innerText = state.running ? "运行中" : "未运行"
+        $("#state").style.backgroundColor = state.running ? "greenyellow" : "#aaa"
+        $("#state").style.borderRadius = "2px"
+
+        $("#action").innerText = state.running ? "停止" : "启动"
+    }
+
+    function action() {
+        var o = parent.helper.pro.fortressItem
+        o.state.running ? o.stop() : o.start()
+    }
+<\/script>
+<\/head>
+<body>
+    <h3>领取遗迹道具<\/h3>
+    <div class="panel">
+        <select id="group" onchange="changegroup()">
+            <option value=1>要塞等级1<\/option>
+            <option value=2>要塞等级2<\/option>
+            <option value=3>要塞等级3<\/option>
+            <option value=4>要塞等级4<\/option>
+            <option value=5>要塞等级5<\/option>
+            <option value=6>要塞等级6<\/option>
+        <\/select>
+        <div id="content">
+            <ul class="list" id="items">
+                <li draggable="true">1<\/li>
+                <li draggable="true">2<\/li>
+                <li draggable="true">3<\/li>
+                <li draggable="true">4<\/li>
+                <li draggable="true">5<\/li>
+            <\/ul>
+        <\/div> 
+    <\/div>
+    <div class="panel">
+        <div id="history">
+        <\/div>
+    <\/div>
+    <span id="state">未运行<\/span>
+    <button id="action" onclick="action()">启动<\/button>
+<\/body>
+
+<script>
+    let list = document.querySelector('.list')
+    let currentLi
+    list.addEventListener('dragstart',(e)=>{
+        e.dataTransfer.effectAllowed = 'move'
+        currentLi = e.target
+        setTimeout(()=>{
+            currentLi.classList.add('moving')
+        })
+    })
+
+    list.addEventListener('dragenter',(e)=>{
+        e.preventDefault()
+        if(e.target === currentLi||e.target === list){
+            return
+        }
+        let liArray = Array.from(list.childNodes)
+        let currentIndex = liArray.indexOf(currentLi)
+        let targetindex = liArray.indexOf(e.target)
+
+        if(currentIndex<targetindex){
+ 
+            list.insertBefore(currentLi,e.target.nextElementSibling)
+        }else{
+  
+            list.insertBefore(currentLi,e.target)
+        }
+    })
+    list.addEventListener('dragover',(e)=>{
+        e.preventDefault()
+    })
+    list.addEventListener('dragend',(e)=>{
+        currentLi.classList.remove('moving')
+        apply()
+    })
+<\/script>
+
+<\/html>`
+
+
+//-------------------------------------------------------------------------------------------------
+//攻击战争之源
+helper.pro.worldBoss && helper.pro.worldBoss.free()
+helper.pro.worldBoss = {
+    setting:{preset:1, count:5, precheck:!0, energy:!1},
+    state:{counter:0, running:!1},
+
+    async _fight(ti) {
+        if (await helper.battle.mutex.acquire(2000) ) {
+            try {
+                var context = helper.battle.backup()
+                var o = new(__require("WorldBossDetailPanel").default)
+                Object.assign(o, {tileInfo:ti, bossId:ti.extData.bossId}).onClickAttackBtn()
+                return helper.battle.setup(this.setting.preset, 9999) && helper.battle.march()            //设置英雄和士兵并出征
+             }
+            finally {
+                helper.battle.restore(context);
+                helper.battle.mutex.release();
+            }
+        }
+    },
+
+    async _tileInfo(p) {
+        var c = __require("NWorldMapController").default.instance
+        var o = p && await send(RequestId.GET_WORLD_INFO, {x: p.x, y: p.y, k: UserData.ServerId, marchInfo: !1, viewLevel: 0})
+        p = o && o.pointList && o.pointList.find(e=>e.x == p.x && e.y == p.y)
+        return p && (c.updateTileInfo(p, 0), c.getTileInfoByCoord(p.x, p.y, p.k, 0))
+    },
+
+    //补充体力
+   _charge() {
+    if (this.setting.energy) {
+        for(var e of UserData.getItemList()) {
+            if (6 === e.Data.type && e.Amount > 0) {
+                    return send(RequestId.ITEM_USE, {amount:1, itemid:e.ItemId});
+                }
+            }
+        }
+        return 0
+    },
+
+    //体力检查  
+    async _energy(ti) {
+        //计算任务体力
+        var y = __require("TableManager").TABLE.getTableDataById("monster_group", ti.extData.bossId.toString())
+        var t = __require("FWSTool").Obj.getPropertyByNames(y, 0, "cost_energy")
+        var s = UserData.getEnergy(1).Point
+        return (t <= s ? 1 : await this._charge() ? 2 : 0)
+    },
+
+    //检查编队
+    _precheck() {
+        //单兵检查(含机甲)
+        if (0 == this.setting.preset || 9 == this.setting.preset) {
+            var one = __require("GameTools").default.getAttackerMyArmys().sort((t, e)=>{return t.ArmyData.power - e.ArmyData.power})[0];
+            if (!one || (one.battleMechaData && !helper.battle.mechaOk(one.battleMechaData.mechaId)))
+                return 0
+        }
+        //预设编队检查
+        if (0 < this.setting.preset && this.setting.preset < 9 && this.setting.precheck) { 
+            var heros = __require("HeroController").HeroController.getInstance().getHaveHeroCanMarchList()
+            var armys = __require("GameTools").default.getAttackerMyArmys()
+            var march = UserData.PresetMarchData.getPreMarchByIndex(this.setting.preset-1)
+            if (!march) return 0  
+
+            //检查英雄
+            for (var i = 0; i < march.HeroIds.length; ++i) if (!heros.find((e)=>{return e._id == march.HeroIds[i]})) return 0
+
+            //检查士兵
+            for (var group = {}, i = 0; i < armys.length; ++i) {var n=armys[i].ArmyData.id; group[n] = (group[n] ? group[n] : 0) + 1}
+            for (var e of march.Armys) {
+                if (e && e.ArmyId && e.isMecha && !helper.battle.mechaOk(e.mechaId)) return 0
+                if (e && e.ArmyId && !e.isMecha && (!group[e.ArmyId] || (group[e.ArmyId] -= e.Num)<0)) return 0
+            }
+        }
+        return 1
+    },
+
+    async _attack(boss) {
+        if (UserData.myMarchNum < UserData.myMarchNumMAX && this._precheck()) {
+            var o = await send(RequestId.GET_BOSS_ATTACK_INFO, {})
+            if (o && o.worldBossAttackCount < 5) {
+                var ti = await this._tileInfo({x:boss.x, y:boss.y})
+                return ti && await this._energy(ti) && await this._fight(ti)
+            }
+        } 
+    },
+
+    async _execute() {
+        if (this.state.counter < this.setting.count && UserData.FunctionOn(__require("GameDefine").FunctionKey.world_boss)) {
+            var d = new Date(ServerTime*1000), h = d.getHours(), m = d.getMinutes(), w = d.getDay()
+            if (h == 4 || h == 20 || (w > 0 && h == 12 || w == 0 && (h==12 && m>=5 || h==13 && m<5))) {
+                var o = await send(RequestId.getBossInfo, {})
+                o && o.bossId && await this._attack(o) && (this.state.counter++, this._update())
+            }
+        }
+    },
+
+    _onTimer() {
+        this._execute()
+    },
+
+    _start() {
+        this.timer || (this.timer = setInterval(this._onTimer.bind(this), 10000))
+    },
+
+    _stop() {
+        this.timer && (clearInterval(this.timer), this.timer = 0)
+    },
+
+    _update() {
+        this._save()
+        this._render()
+    },
+
+    _save() {
+        setItem("world-boss", JSON.stringify({setting:this.setting, state:this.state}))        
+    },
+
+    async _load() {
+        var o = await getItem("world-boss")
+        o && (o = JSON.parse(o)) && (this.setting = o.setting, this.state = o.state)
+    },
+
+    _render() {
+        var iframe = helper.dialog.iframe;
+        if (iframe && iframe.name == "world-boss") {
+            iframe.contentWindow.render(this.setting, this.state)
+        }
+    },
+
+    start() {
+        !this.state.running && (this.state.running = !0, this._start(), this._update())
+    },
+     
+    stop() {
+        this.state.running && (this.state.running = !1, this._stop(), this._update())
+    },
+     
+    apply(setting) {
+        this.setting = setting
+        this._update()
+    },
+     
+    async init() {
+        await this._load()
+        this.state.running && this._start()
+    },
+
+    free() {
+        this._stop()
+    },
+
+    dayInit() {
+        this.state.counter = 0, this._update()
+    },
+
+    open() {
+        helper.dialog.open({name:"world-boss", width:500, height:175, html:this.html})
+        this._render() 
+    }
+}
+
+helper.pro.worldBoss.html = String.raw
+`<html charset="UTF-8">
+<head>
+<style>
+    body{line-height:30px; vertical-align:top; font-size:14px; font-family:"Helvetica","Lucida Console","Microsoft soft";}
+    h3{display:block; margin-top:12px; margin-bottom:8px; text-align:center; width:100%}
+    span{margin-left:12px}
+    input{color:#333;border:1px solid #999; border-radius:3px; outline-style:none; margin-right:12px; padding-top:2px; height:20px;}
+    input[type="checkbox"]{margin-right:1px; vertical-align:top; margin-top:8px; width:14px; height:14px;}
+    select{color:#333; border:1px solid #999; border-radius:4px; outline-style:none; margin-left:0px; padding-top:1px; height:20px; }
+    button{border:1px solid #999; border-radius:3px; outline-style:none; text-align:center; margin-top:0px; width:60px; height:22px;}
+    button:hover{background-color:#ccc;} button:focus{background-color:#ccc;} button:active{transform: translateY(1px);}
+    input::-webkit-input-placeholder{color: #aaa;}
+    #counter{display:inline-block; color:green; width:100%}
+    #state{margin-left:10px; margin-top:8px; text-align:center; height:20px}
+    #action{margin-left:140px; margin-top:8px; text-align:center; width:80px;}
+    div.panel{border:1px solid silver; border-radius:6px; margin:8px; padding:4px; padding-top:8px; padding-left:12px; box-shadow: 3px 3px 6px gray;}
+    .combo-box{display:inline-block; position:relative;} .combo-list{width:70px;} .combo-edit{position:absolute; padding-top:1px; width:50px; height:18px; left:1px; top:1px; border:0px;}
+<\/style>
+<\/script>      
+<script>
+    function $(a) {
+        return a && '#'==a[0] && document.getElementById(a.substring(1))
+    }
+
+    function apply() {
+        var setting = {}
+        setting.preset = Number($("#preset").value)
+        setting.count = Number($("#count").value)
+        setting.precheck = $("#precheck").checked
+        setting.energy = $("#energy").checked
+        parent.helper.pro.worldBoss.apply(setting)
+    }
+
+    function render(setting, state) {
+        $("#preset").value = setting.preset
+        $("#count").value = setting.count
+        $("#precheck").checked = setting.precheck
+        $("#energy").checked = setting.energy
+        $("#counter").innerText = state.counter ? '已攻击' + state.counter +'次' : '　'
+        $("#counter").style.color = state.counter >= setting.count ? "green" : state.running ? "purple" : "black"
+
+        $("#state").innerText = state.running ? "运行中" : "未运行"
+        $("#state").style.backgroundColor = state.running ? "greenyellow" : "#aaa"
+        $("#state").style.borderRadius = "2px"
+
+        $("#action").innerText = state.running ? "停止" : "启动"
+    }
+
+    function action() {
+        var o = parent.helper.pro.worldBoss
+        o.state.running ? o.stop() : o.start()
+    }
+<\/script>
+<\/head>
+<body>
+    <h3>攻击战争之源<\/h3>
+    <div class="panel">
+        <label>编队：<\/label>
+        <select id="preset" class="combo-list" onchange="apply()">
+            <option value="1">编队1<\/option>
+            <option value="2">编队2<\/option>
+            <option value="3">编队3<\/option>
+            <option value="4">编队4<\/option>
+            <option value="5">编队5<\/option>
+            <option value="6">编队6<\/option>
+            <option value="7">编队7<\/option>
+            <option value="8">编队8<\/option>
+            <option value="9">自动<\/option>
+        <\/select>
+        <span><\/span>
+        <label>次数：<\/label>
+        <select id="count" class="combo-list" onchange="apply()">
+            <option value="1">1次<\/option>
+            <option value="2">2次<\/option>
+            <option value="3">3次<\/option>
+            <option value="4">4次<\/option>
+            <option value="5">5次<\/option>
+        <\/select>
+        <span><\/span>
+        <input type="checkbox" id="precheck" onclick="apply()"><label>检查行军<\/label>
+        <span><\/span>
+        <input type="checkbox" id="energy" onclick="apply()"><label>补充体力<\/label>
+        <br>
+        <label id="counter"><\/label>
+    <\/div>
+    <span id="state">未运行<\/span>
+    <button id="action" onclick="action()">启动<\/button>
+<\/body>
+<\/html>`
+
+
+//-------------------------------------------------------------------------------------------------
+//免受攻击保护
+helper.pro.avoidAttacked && helper.pro.avoidAttacked.free()
+helper.pro.avoidAttacked = {
+    setting: {
+        factor: {mecha: 2.0, power: 1.1, restraint: 2.0},
+        option: {shield:!0, move_city:!0, assembly:!0},
+        propitem: 0,
+        block: 0,
+        teams: 12345678
+    },
+    state: {
+        running: !1
+    },
+    marchList: [],
+    history: [],
+
+    //---------------------------------------------------------------------------------------------
+    // id: 0-自动选择, 200004-4小时护盾 200005-8小时护盾 200006-24小时护盾
+    async _shieldProtect(id) {
+        //存在护盾
+        if (UserData.ShieldTime > ServerTime) return !0
+
+        //战争状态
+        var e = UserData.Buff.StatePool["41001"]
+        if (e && e.EndTime > ServerTime) return !1
+
+        //检查道具
+        id || (id = UserData.getItemAmount(200004) ? 200004 : UserData.getItemAmount(200005) ? 200005 : 200006) 
+        if (UserData.getItemAmount(id) == 0) return !1  
+
+        //添加护盾
+        return await send(RequestId.PeaceShieldHandler, {itemId:id, amount:1, isPurchase:0})    
+    },
+
+    //---------------------------------------------------------------------------------------------
+    _randomBase(i) {
+        if (i>=0 && i<=9) {
+            // i=0表示全地图,随机选择一块区域
+            i = i > 0 ? i-1 : Math.min(Math.floor(Math.random()*9), 8)
+
+            //九块区域基准坐标
+            var x = (i % 3) * 272 + 136
+            var y = Math.floor(i \/ 3) * 317 + 158
+
+            //基准偶数坐标
+            y % 2 == 1 && y++
+            return {x:x, y:y}
+        }
+    },
+
+    _randomDest(e) {
+        //随机同偶坐标，坐标范围x=base.x-36~base.x+36, y=base.y-36~base.y+36
+        var x = Math.floor(e.x - 36 + Math.random()*72), y = Math.floor(e.y - 36 + Math.random()*72)
+        x % 2 == 0 && y % 2 == 1 && y++
+        x % 2 == 1 && y % 2 == 0 && y++
+        return {x:x, y:y}        
+    },
+
+    _canMove(o, e) {
+        //检查坐标是空地且不属于其他盟领地
+        var u = __require("NWorldMapUtils").NWorldMapUtils
+        var t = __require("NWorldMapTerritoryController").default.instance.getAllianceIdByPoint(e.x, e.y)
+        return u.checkTileArea(e.x, e.y, UserData.ServerId, 0) && u.checkCanMove(e.x, e.y) && (t <= 0 || t == UserData.Alliance.Aid) && !o.pointList.find(i=>i.x == e.x && i.y == e.y) 
+    },
+
+    async _updateMap(b) {
+        var a = __require("NWorldMapController").default.instance, y = __require("NWorldMapMarchController").default.instance
+        var g = __require("NWorldMapTerritoryModel").default.instance, f = __require("NWorldMapData").default.instance, d = __require("WorldMapMsgs")    
+
+        //更新坐标信息
+        var k = UserData.ServerId, r = new Map, s 
+        var o = await send(RequestId.GET_WORLD_INFO, {x: b.x, y: b.y, k: k, rid: 0, width: 14, height: 20, marchInfo: !0, viewLevel: 1})
+        o && o.pointList && o.pointList.forEach(e=>s = a.updateTileInfo(e, 1), s && r.set(s, !0)) 
+        d.send(d.Names.WorldMapUpdateViewPort, r)
+
+        //更新行军信息
+        o && o.marchList && (y.model.dealMarchDataFromNowWorldMarchData(o.marchList, !0), y.model.addMonsterDefenderMarchData())
+        d.send(d.Names.WorldMapMarchsInit, null)
+
+        //更新联盟领地
+        var t = await send(RequestId.GET_TERRITORY_INFO, {x: b.x, y: b.y, k: k, width: 14, height: 20})
+        t && t.infos && (g.clearAlianceTerritory(), g.updateAllianceTerritory(t.infos, !1, k))
+
+        return o
+    },
+
+    async _randomTile(i) {
+        var b = this._randomBase(i), o = await this._updateMap(b), e = this._randomDest(b), n = 0
+        //最多尝试100次
+        while (o && e && ++n <= 100) { 
+            if (this._canMove(o, e) && this._canMove(o, {x:e.x, y:e.y-2}) && this._canMove(o, {x:e.x-1, y:e.y-1}) && this._canMove(o, {x:e.x+1, y:e.y-1})) return e
+            e = this._randomDest(b) 
+        }
+    },
+
+    async _moveProtect(i) {
+        if (0 == UserData.myMarchNum && UserData.getItemAmount(200003)) {
+            var e = await this._randomTile(i)
+
+            \/*雷云技能,防守时不使用雷云技能
+            var n = parseInt(__require("GameTools").default.getDataConfigData(20214233)) //1781000
+            var o = n &&__require("GameTools").default.getCitySkillConfigDataBySkinId(n, 0)
+            var r = n && UserData.getCitySkillDataById(n)
+            e = o && r && o.times_perday > r.Count && {itemId:0, amount:0, isPurchase:0, x:e.x, y:e.y, citySkill:1}
+            *\/
+
+            //道具迁城
+            var o = e && await send(RequestId.MOVE_CITY_POSITION, {itemId:200003, amount:1, isPurchase:0, x:e.x, y:e.y, citySkill:0})
+            o ? __require("WorldMapMsgs").send(__require("WorldMapMsgs").Names.WorldMapUpdateViewPort, null) : console.log(e)
+            return o
+        }
+    },
+
+    //---------------------------------------------------------------------------------------------
+    async _gather(ti, preset) {
+        if (await helper.battle.mutex.acquire(2000)) {
+            try {
+                var context = helper.battle.backup()
+                var ri = __require("NWorldMapModel").default.instance.getResourceInfoByTileId(ti.id)
+                Object.assign(new(__require("NWorldResourcePopup").default), {_tileInfo: ti, _resInfo: ri}).Attack()  // 采集
+                return helper.battle.setup(preset, 9999) && helper.battle.march()  //设置英雄和士兵并出征
+            }
+            finally {
+                helper.battle.restore(context)
+                helper.battle.mutex.release()
+            }
+        }
+    },
+
+    async _tileInfo(p) {
+        var c = __require("NWorldMapController").default.instance
+        return p && (c.updateTileInfo(p, 0), c.getTileInfoByCoord(p.x, p.y, p.k, 0))
+    },
+
+    async _searchResource() {
+        for(var i = 5; i >= 1; --i) {
+            for(var t of [101, 501, 701]) {
+                var o = await send(RequestId.WORLD_SEARCH_MONSTER, {groupType:t+i, maxLevel:i, minLevel:i, pointType:2})
+                if (o && o.point && o.point.r) return o.point
+            }
+        }
+    },
+
+    async _gatherProtect(t) {
+        var n = UserData.myMarchNumMAX - UserData.myMarchNum
+        var s = t.toString(), r = !1
+        for(var o, i = 0; i < n; ++i) {
+            o = s[i] && await this._searchResource()
+            o = o && this._tileInfo(o)
+            r = o && await this._gather(o, Number(s[i])) || r
+        }
+        return r
+    }, 
+
+    //---------------------------------------------------------------------------------------------
+    async _assembly(ti, preset) {
+        if (await helper.battle.mutex.acquire(2000)) {
+            try {
+                var context = helper.battle.backup()
+                Object.assign(wmnew(__require("NWorldMapAssemblyEnemyComponent").default), {tileInfo:ti}).StartAssembly(null, 0)
+                return helper.battle.setup(preset, 9999) && helper.battle.march()   
+            }
+            finally {
+                helper.battle.restore(context)
+                helper.battle.mutex.release()
+            }
+        }
+    },
+
+    //搜索战锤
+    async _searchHammer() {
+
+        var id = __require("WorldMonsterModel").WorldMonsterModel.Instance.assembleMonsterList[0].id
+        var o = send(RequestId.WORLD_SEARCH_MONSTER, {groupType: id, pointType: 3, minLevel: 10, maxLevel: 80})
+        return o && o.point
+    },
+
+    //补充体力
+    async _charge() {
+        if (UserData.getEnergy(1).Point < 10) {
+            for(var e of UserData.getItemList()) if (6 === e.Data.type && e.Amount > 0) return send(RequestId.ITEM_USE, {amount:1, itemid:e.ItemId})
+            return !1
+        }
+        return !0
+    },
+
+    async _assemblyProtect(t) {
+        var n = UserData.myMarchNumMAX - UserData.myMarchNum && await this._charge()
+        var s = t.toString(), r = !1
+        for(var o, i = 0; i < n; ++i) {
+            o = s[i] && await _charge() && await this._searchHammer()
+            o = o && this._tileInfo(o)
+            o = o && await this._assembly(o, Number(s[i]))
+            r = (o && this.marchList.push(o), this.marchList.length>8 && this.marchList.splice(0,1), o || r)
+        }
+        return r
+    },
+
+    //---------------------------------------------------------------------------------------------
+    //防守三军兵力
+    _defenderArmyPower() {
+        var NBattleModel = __require("NBattleModel").NBattleModel
+        var HeroController = __require("HeroController").HeroController
+        var NBattlePositionBiz = __require("NBattlePositionBiz").NBattlePositionBiz
+        var TableName = __require("TableName").TableName
+        var TABLE = __require("TableManager").TABLE
+        var GameTools = __require("GameTools")
+
+        var heros = HeroController.getInstance().getHaveHeroCanMarchList()
+          , armys = GameTools.default.getAttackerMyArmys()
+          , total = {}
+
+        //检查英雄
+        NBattleModel.instance.attackerHeros = HeroController.getInstance().getProtectHeroListId()
+        NBattleModel.instance.myMaxArmysNum = NBattlePositionBiz.getPositionCount(UserData.Level)
+        for (var hero of NBattleModel.instance.attackerHeros) if (!heros.find(e=>e._id == hero)) return {1:0, 2:0, 3:0}
+
+        //计算防守兵力
+        armys.forEach(e=>{var n = e.ArmyData.id; total[n] = (total[n] ? total[n] : 0) + 1})
+        for (var r = {}, p = {}, c, n, b, l, d, t, i = 0, a = UserData.DefenseArmyInfo; i < a.length; ++i) {
+            c = r[a[i].armyId] ? r[a[i].armyId] : 0                   //已用士兵数
+            n = NBattleModel.instance.getMaxCoutByPos(a[i].pos)       //最大士兵数
+            b = total[a[i].armyId] - c                                //剩余士兵数
+            l = n > b ? b : n                                         //实际士兵数
+            d = TABLE.getTableDataById(TableName.ARMY, a[i].armyId)
+            d && (
+                d.mecha_id ? helper.battle.mechaOk(d.mecha_id) && (
+                    t = d.type.toString().substring(0, 1),
+                    p[t] = (p[t] ? p[t] : 0) + d.power * n * this.setting.factor.mecha
+                ) : (
+                    r[a[i].armyId] = c + l, 
+                    t = a[i].armyId.toString().substring(0, 1),           //兵种
+                    p[t] = (p[t] ? p[t] : 0) + d.power * l
+                )
+            ) 
+        }
+        \/* 由于攻击行军士兵明细不包含军阵附加士兵，暂时不考虑军阵附加兵力
+        //军阵附加兵力
+        if (UserData.DefenseExtraArmy) {
+            i = UserData.DefenseExtraArmy.armyId                  //士兵Id
+            n = UserData.DefenseExtraArmy.armyNum                 //最大士兵数
+            c = r[i] ? r[i] : 0                                   //已用士兵数
+            b = total[i] - c                                      //剩余士兵数
+            l = n > b ? b : n                                     //实际士兵数
+            d = TABLE.getTableDataById(TableName.ARMY, i)
+            t = i.toString().substring(0, 1)
+            p[t] = (p[t] ? p[t] : 0) + d.power * l
+        }
+        *\/
+        return p
+    },
+
+    //进攻三军兵力
+    _attackerArmyPower() {
+        var TABLE = __require("TableManager").TABLE
+        var TableName = __require("TableName").TableName
+
+        //计算行军总兵力(包括集结)
+        for(var p = {}, i = 0; i < this.attacker.list.length; ++i) {
+            this.attacker.list[i].armys.forEach(e=>{
+                var t, d = TABLE.getTableDataById(TableName.ARMY, e.armyId)
+                d && (
+                    d.mecha_id ? (
+                        //机甲因子修正兵力
+                        t = d.type.toString().substring(0, 1),                //t:兵种  1-陆军 2-海军 3-空军
+                        p[t] = (p[t] ? p[t] : 0) + d.power * e.armyNum * this.setting.factor.mecha
+                    ) : (
+                        t = e.armyId.toString().substring(0, 1),           //兵种
+                        p[t] = (p[t] ? p[t] : 0) + d.power * e.armyNum
+                    )
+                )  
+            })
+        }
+        return p
+    },
+
+    //攻守三军兵力综合对比
+    _compareArmyPower() {
+        var r = (this.attacker.point.p.power && UserData.Power ? this.attacker.point.p.power \/ UserData.Power : 1) * this.setting.factor.power
+        var t = this.setting.factor.restraint
+        var k = this._attackerArmyPower()
+        var n = this._defenderArmyPower()
+
+        console.log("攻守三军兵力及战力系数:", k, n, r)
+
+        //三军各自军力对比,加入战力比乘以战力因子后的四次方
+        r = r * r * r * r
+        n[1] = (n[1]?n[1]:0)-(k[1]?k[1]:0)*r
+        n[2] = (n[2]?n[2]:0)-(k[2]?k[2]:0)*r
+        n[3] = (n[3]?n[3]:0)-(k[3]?k[3]:0)*r
+
+        console.log("战力修正后三军兵力差:", n)
+
+        //综合三军战力对比,加入克制因子
+        n[1]<0 && n[2]>0 && (n[1]+n[2]*t>=0 ? (n[2] += n[1]\/t, n[1] = 0) : (n[1] += n[2]*t, n[2] = 0))
+        n[1]<0 && n[3]>0 && (n[1]+n[3]\/t>=0 ? (n[3] += n[1]*t, n[1] = 0) : (n[1] += n[3]\/t, n[3] = 0))
+
+        n[2]<0 && n[3]>0 && (n[2]+n[3]*t>=0 ? (n[3] += n[2]\/t, n[2] = 0) : (n[2] += n[3]*t, n[3] = 0))
+        n[2]<0 && n[1]>0 && (n[2]+n[1]\/t>=0 ? (n[1] += n[2]*t, n[2] = 0) : (n[2] += n[1]\/t, n[1] = 0))
+
+        n[3]<0 && n[1]>0 && (n[3]+n[1]*t>=0 ? (n[1] += n[3]\/t, n[3] = 0) : (n[3] += n[1]*t, n[1] = 0))
+        n[3]<0 && n[2]>0 && (n[3]+n[2]\/t>=0 ? (n[2] += n[3]*t, n[3] = 0) : (n[3] += n[2]\/t, n[2] = 0))
+
+        console.log("克制修正后三军兵力差及总兵力差:", n, n[1] + n[2] + n[3])
+
+        return n[1] + n[2] + n[3]
+    },
+    
+    async _compare(marchId) {
+        //获取攻击行军信息
+        var o = marchId && await send(RequestId.GET_MARCH_INFO, {marchId:marchId})
+        var march = o && o.marchInfo
+           
+        //获取攻击出征士兵明细
+        o = march && await send(RequestId.MARCH_ARMY_DETAIL, {marchId:marchId})
+        var list = o && o.list
+            
+        //获取攻击者基地信息(战力)
+        o = march && await send(RequestId.GET_WORLD_INFO, {x:march.begin.bx, y:march.begin.by, k:UserData.ServerId, marchInfo:!1})
+        var point = o && o.pointList.find(i=>i.x == march.begin.bx && i.y == march.begin.by)
+                 
+        //发起攻击行军状态
+        this.attacker={march:march, list:list, point:point}
+        return march && list && point && this._compareArmyPower()
+    },
+
+    async _protect() {
+        if (!this.busy) try {
+            this.busy = 1
+            if (this.setting.option.shield && await this._shieldProtect(this.setting.propitem)) return 1
+            if (this.setting.option.move_city && await this._moveProtect(this.setting.block)) return 2
+            if (this.setting.option.assembly && await this._assemblyProtect(this.setting.teams)) return 3
+            return 0
+        } finally {
+            this.busy = 0
+        }
+    },
+
+    _log(e) {
+        this.history.splice(0, this.history.length-29)
+        this.history.push(e)
+        this._update()    
+    },    
+
+    async onAttacking() {
+        for(var i in UserData._AttackArmyPool) {
+            var e = Object.assign({}, UserData._AttackArmyPool[i])
+            
+            //发起攻击行军状态
+            if (1 == e.attackState) {
+                var action = await this._compare(e.marchId) < 0 && await this._protect()
+                var m = this.attacker.march
+                m && this._log({time:ServerTime, uid:m.uid, name:m.name, type:1, x:m.begin.bx, y:m.begin.by, action:action, ext_data:this.attacker})
+            }
+        }
+    },
+
+    onApproaching(e) {
+        console.log("攻击者抵近:", e)
+        setTimeout(
+            (async(e)=>{
+                var action = await this._protect()
+                //记录日志
+                var o = e && e.p && JSON.parse(e.p.playerInfo)
+                o && this._log({time:ServerTime, uid:e.p.pid, name:o.username, type:2, x:e.x, y:e.y, action:action, ext_data:{point:e}})
+            }).bind(this), 
+            1500, e
+        )
+    },
+
+    onAssemblyUpdate(e) {
+        if (this.marchList.find(k=>k.marchId == e.marchId)) {
+            //踢人
+        }
+    },
+
+    onMyMarchUpdate(e) {
+        this.onAttacking()
+    },
+    
+    _init_mc() {
+        this.mc = new (__require("FWSMvc").FMessageConnectionAbstract)
+        this.mc.updateTileInfo = async(e)=>{
+            var o = await send(RequestId.GET_PLAYER_POINT, {targetId: UserData.UID.toString()})
+            var t = o && o.point
+            if (e && e.p && t && t.p && e.p.aid != t.p.aid && e.p.power >= t.p.power &&
+                e.k == t.k && Math.pow(e.x-t.x, 2) + Math.pow(e.y-t.y, 2) <= 40) {
+                this.onApproaching(e)
+            }
+        }
+        this.mc.onFMessage_NEW_WORLD_MAP_CONTROLLER = e=>{var t = this.mc[e.data.name]; return t && (e.data.result = t.apply(this, e.data.args)), !0}
+    },
+
+    _onEvent() {
+        __require("EventCenter").EVENT.on(__require("EventId").EventId.AttackingMarchUpdate, this.onAttacking, this)   //启动监听攻击事件
+        __require("EventCenter").EVENT.on(__require("EventId").EventId.AssemblysUpdate, this.onAssemblyUpdate, this)   //监听集结修改事件
+        __require("EventCenter").EVENT.on(__require("EventId").EventId.My_March_Update, this.onMyMarchUpdate, this)    //监听行军修改事件
+    },
+
+    _offEvent() {
+        __require("EventCenter").EVENT.off(__require("EventId").EventId.AttackingMarchUpdate, this.onAttacking, this)   //停止监听攻击事件
+        __require("EventCenter").EVENT.off(__require("EventId").EventId.AssemblysUpdate, this.onAssemblyUpdate, this)   //监听集结修改事件
+        __require("EventCenter").EVENT.off(__require("EventId").EventId.My_March_Update, this.onMyMarchUpdate, this)    //监听行军修改事件
+    },
+
+    _start() {
+        this._onEvent(), this.mc.connect() 
+    },
+
+    _stop() {
+        this._offEvent(), this.mc.disconnect()
+    },
+
+    _update() {
+        this._save()
+        this._render()
+    },
+
+    _save() {
+        var a = []
+        this.history.forEach(e => a.push({time:e.time, uid:e.uid, name:e.name, type:e.type, x:e.x, y:e.y, action:e.action}))
+        setItem("avoid-attacked", JSON.stringify({setting:this.setting, state:this.state, history:a}))        
+    },
+ 
+    async _load() {
+        var o = await getItem("avoid-attacked")
+        o && (o = JSON.parse(o)) && (this.setting = o.setting, this.state = o.state, this.history = o.history)
+    },
+ 
+    _render() {
+        function timestr(t) {var a=new Date(); return a.setTime(t*1000), (a.getMonth()+1)+'-'+a.getDate()+" "+a.getHours()+":"+a.getMinutes().toString().padStart(2,'0')+":"+a.getSeconds().toString().padStart(2,'0')}
+ 
+        var iframe = helper.dialog.iframe;
+        if (iframe && iframe.name == "avoid-attacked") {
+            for (var history=[], i=this.history.length-1; i>=0; --i) {
+                var e = this.history[i]
+                if (1 == e.type) {
+                    history.push(timestr(e.time) + '  ' + e.name + '(' + e.uid + ')从' + e.x + ',' + e.y + '攻击, ' + (e.action==0 ? '未启动保护' : e.action==1 ? '护盾保护' : e.action==2 ? '迁城保护' : '采集保护'))  
+                } 
+                if (2 == e.type) {
+                    history.push(timestr(e.time) + '  ' + e.name + '(' + e.uid + ')抵近(' + e.x + ',' + e.y + '), ' + (e.action==0 ? '未启动保护' : e.action==1 ? '护盾保护' : e.action==2 ? '迁城保护' : '采集保护'))
+                }
+            }
+            iframe.contentWindow.render(this.setting, history, this.state)
+        }
+    },
+ 
+    start() {
+        !this.state.running && (this.state.running = !0, this._start(), this._update())
+    },
+
+    stop() {
+        this.state.running && (this.state.running = !1, this._stop(), this._update())
+    },
+
+    apply(setting) {
+        this.setting.option.shield = setting.option.shield
+        this.setting.option.move_city = setting.option.move_city
+        this.setting.option.assembly = setting.option.assembly
+        this.setting.propitem = setting.propitem
+        this.setting.block = setting.block
+        this.setting.teams = setting.teams
+        this._update()
+    },
+
+    async init() {
+        this._init_mc(), await this._load()
+        this.state.running && this._start()
+    },
+
+    free() {
+        this._stop()
+    },
+
+    open() {
+        helper.dialog.open({name:"avoid-attacked", width:600, height:350, html:this.html})
+        this._render() 
+    }
+}
+
+helper.pro.avoidAttacked.html = String.raw
+`<html charset="UTF-8">
+<head>
+<style>
+    body{line-height:26px; vertical-align:top; font-size:14px; font-family:"Helvetica","Lucida Console","Microsoft soft";}
+    h3{display:block; margin-top:12px; margin-bottom:8px; text-align:center; width:100%}
+    label{margin-left:2px; margin-right:2px;}
+    label.caption{display:inline-block; width:80px;}
+    span{margin-left:20px; margin-right:0px;}
+    input{color:#333;border:1px solid #999; border-radius:3px; outline-style:none; margin-right:12px; padding-top:2px; height:20px;}
+    input[type="checkbox"]{margin-right:1px; vertical-align:top; margin-top:6px; width:14px; height:14px;}
+    select{border:1px solid #999; border-radius:4px; outline-style:none; margin-left:0px; padding-top:1px; height:20px; }
+    button{border:1px solid #999; border-radius:3px; outline-style:none; text-align:center; margin-top:0px; width:60px; height:22px;}
+    button:hover{background-color:#ccc;} button:focus{background-color:#ccc;} button:active{transform: translateY(1px);}
+    input::-webkit-input-placeholder{color: #aaa;}
+    div.item{display:inline-block; margin-right:12px;}
+    div.panel{border:1px solid silver; border-radius:6px; margin:8px; padding-left:12px; padding-right:0px; box-shadow: 3px 3px 6px gray;}
+    #state{margin-left:10px; margin-top:8px; text-align:center; height:20px}
+    #action{margin-left:200px; margin-top:8px; text-align:center; width:80px;}
+    #setting{padding-top:8px; padding-bottom:8px;} #assembly-div{margin-right:0px;} #teams{width:100px;}
+    #history{height:200px; line-height:25px; padding-left:8px; overflow-x:auto; overflow-y:auto;} 
+<\/style>
+<\/script>      
+<script>
+    function $(a) {
+        return a && '#'==a[0] && document.getElementById(a.substring(1))
+    }
+
+    function apply(e) {
+        var setting = {option:{}}
+        setting.option.shield = $("#shield").checked
+        setting.option.move_city = $("#movecity").checked
+        setting.option.assembly = $("#assembly").checked
+        setting.propitem = Number($("#propitem").value)
+        setting.block = Number($("#block").value)
+        setting.teams = Number($("#teams").value)
+        parent.helper.pro.avoidAttacked.apply(setting);
+    }
+
+    function render(setting, history, state) {
+        $("#shield").checked = setting.option.shield
+        $("#movecity").checked = setting.option.move_city 
+        $("#assembly").checked = setting.option.assembly
+        $("#propitem").value = setting.propitem
+        $("#block").value = setting.block
+        $("#teams").value = setting.teams
+
+        $("#shield-div").style.visibility = setting.option.shield ? "visible" : "hidden"
+        $("#movecity-div").style.visibility = setting.option.move_city ? "visible" : "hidden"
+        $("#assembly-div").style.visibility = setting.option.assembly ? "visible" : "hidden"
+
+        var html = ""
+        history.forEach(e=>html += "" == html ? e : "<br>"+e)
+        $("#history").innerHTML = html
+
+        $("#state").innerText = state.running ? "运行中" : "未运行"
+        $("#state").style.backgroundColor = state.running ? "greenyellow" : "#aaa"
+        $("#state").style.borderRadius = "2px"
+
+        $("#action").innerText = state.running ? "停止" : "启动"
+    }
+
+    function action() {
+        var o = parent.helper.pro.avoidAttacked
+        o.state.running ? o.stop() : o.start()
+    }
+<\/script>
+<\/head>
+<body>
+    <h3>免受攻击保护<\/h3>
+    <div class="panel" id="setting">
+        <input type="checkbox" id="shield" onclick="apply()"><label>护盾<\/label>
+        <div class="item" id="shield-div">
+            <label>道具:<\/label>
+            <select id="propitem" name="propitem" onchange="apply()">
+                <option value=0>自动<\/option>
+                <option value=200004>4小时<\/option>
+                <option value=200005>8小时<\/option>
+                <option value=200006>24小时<\/option>
+            <\/select>
+        <\/div>
+        <input type="checkbox" id="movecity" onclick="apply()"><label>迁城<\/label>
+        <div class="item" id="movecity-div">
+            <label>区域:<\/label>
+            <select id="block" name="block" onchange="apply()">
+                <option value=0>全地图<\/option>
+                <option value=1>区域1<\/option>
+                <option value=2>区域2<\/option>
+                <option value=3>区域3<\/option>
+                <option value=4>区域4<\/option>
+                <option value=5>区域5<\/option>
+                <option value=6>区域6<\/option>
+                <option value=7>区域7<\/option>
+                <option value=8>区域8<\/option>
+                <option value=9>区域9<\/option>
+            <\/select>
+        <\/div>
+        <input type="checkbox" id="assembly" onclick="apply()"><label>集结<\/label>
+        <div class="item" id="assembly-div">
+            <label>队列:<\/label>
+            <input id="teams" placeholder="如123456" onchange="apply()">
+        <\/div>
+    <\/div>
+    <div class="panel">
+        <div id="history">
+        <\/div>
+    <\/div>
+    <span id="state">未运行<\/span>
+    <button id="action" onclick="action()">启动<\/button>
+<\/body>
+<\/html>`
+
+
+//-------------------------------------------------------------------------------------------------
+//一键快速攻击
+helper.pro.fastAttack && helper.pro.fastAttack.free()
+helper.pro.fastAttack = {
+    setting:{premove:!0, fixmove:!1, block:0, preset:1, precheck:!0, energy:!0},
+    state:{running:!1},
+    
+    //攻击
+    async _attack(t) {
+        if (await helper.battle.mutex.acquire(2000) ) {
+            try {
+                var context = helper.battle.backup()
+                t.AttackCityinfo(1)
+                return helper.battle.setup(this.setting.preset, 9999) && helper.battle.march()            //设置英雄和士兵并出征
+             }
+            finally {
+                helper.battle.restore(context);
+                helper.battle.mutex.release();
+            }
+        }
+    },
+
+    //更新地图(基于P坐标)
+    async _updateMap(p) {
+        var a = __require("NWorldMapController").default.instance, y = __require("NWorldMapMarchController").default.instance
+        var g = __require("NWorldMapTerritoryModel").default.instance, f = __require("NWorldMapData").default.instance, d = __require("WorldMapMsgs")    
+
+        //更新坐标信息
+        var k = UserData.ServerId, r = new Map, s 
+        var o = await send(RequestId.GET_WORLD_INFO, {x: p.x, y: p.y, k: k, marchInfo: !0, viewLevel: 1})
+        o && o.pointList && o.pointList.forEach(e=>s = a.updateTileInfo(e, 1), s && r.set(s, !0)) 
+        d.send(d.Names.WorldMapUpdateViewPort, r)
+
+        //更新行军信息
+        o && o.marchList && (y.model.dealMarchDataFromNowWorldMarchData(o.marchList, !0), y.model.addMonsterDefenderMarchData())
+        d.send(d.Names.WorldMapMarchsInit, null)
+
+        //更新联盟领地
+        var t = await send(RequestId.GET_TERRITORY_INFO, {x: p.x, y: p.y, k: k, width: 14, height: 20})
+        t && t.infos && (g.clearAlianceTerritory(), g.updateAllianceTerritory(t.infos, !1, k))
+
+        return o
+    },
+
+    //区域基准坐标
+    _randomBase(i) {
+        if (i>=0 && i<=9) {
+            // i=0表示全地图,随机选择一块区域
+            i = i > 0 ? i-1 : Math.min(Math.floor(Math.random()*9), 8)
+
+            //九块区域基准坐标
+            var x = (i % 3) * 272 + 136
+            var y = Math.floor(i \/ 3) * 317 + 158
+
+            //基准偶数坐标
+            y % 2 == 1 && y++
+            return {x:x, y:y}
+        }
+    },
+
+    //区域随机坐标
+    _randomDest(p) {
+        //随机同偶坐标，坐标范围x=base.x-36~base.x+36, y=base.y-36~base.y+36
+        var x = Math.floor(p.x - 36 + Math.random()*72), y = Math.floor(p.y - 36 + Math.random()*72)
+        x % 2 == 0 && y % 2 == 1 && y++
+        x % 2 == 1 && y % 2 == 0 && y++
+        return {x:x, y:y}        
+    },
+
+    //检查可否迁城
+    _canMove(o, e) {
+        //检查坐标是空地且不属于其他盟领地
+        var u = __require("NWorldMapUtils").NWorldMapUtils
+        var t = __require("NWorldMapTerritoryController").default.instance.getAllianceIdByPoint(e.x, e.y)
+        return u.checkTileArea(e.x, e.y, UserData.ServerId, 0) && u.checkCanMove(e.x, e.y) && (t <= 0 || t == UserData.Alliance.Aid) && !o.pointList.find(i=>i.x == e.x && i.y == e.y) 
+    },
+
+    //获取撤退坐标
+    async _getRetreatPos() {
+        var b = this._randomBase(this.setting.block), o = await this._updateMap(b), e = this._randomDest(b), n = 0
+        //最多尝试100次
+        while (o && e && ++n <= 100) { 
+            if (this._canMove(o, e) && this._canMove(o, {x:e.x, y:e.y-2}) && this._canMove(o, {x:e.x-1, y:e.y-1}) && this._canMove(o, {x:e.x+1, y:e.y-1})) return e
+            e = this._randomDest(b) 
+        }
+    },
+ 
+    //获取攻击坐标
+    _getAttackPos(p) {
+        var u = __require("NWorldMapUtils").NWorldMapUtils
+
+        //获取迁城坐标
+        var x, y
+        for (var dy = 0; dy < 3; dy++) {
+            y = p.y + dy
+            for (var dx = 0; dx < 3; dx++) {
+                x = p.x + dx;
+                (x + y) % 2 == 1 && y++
+                if (u.checkCanMove(x, y)) return({x:x, y:y})
+
+                x = p.x - dx;
+                (x + y) % 2 == 1 && y++
+                if (u.checkCanMove(x, y)) return({x:x, y:y})
+            }
+
+            y = p.y - dy
+            for (var dx = 0; dx < 3; dx++) {
+                x = p.x + dx;
+                (x + y) % 2 == 1 && y++
+                if (u.checkCanMove(x, y)) return({x:x, y:y})
+
+                x = p.x - dx;
+                (x + y) % 2 == 1 && y++
+                if (u.checkCanMove(x, y)) return({x:x, y:y})
+            }
+        }
+    },
+
+    //执行迁城
+    async _moveCity(p, b) {
+        if (0 == UserData.myMarchNum) {
+            //使用迁城道具
+            var e = UserData.getItemAmount(200003) > 0 && {itemId:200003, amount:1, isPurchase:0, x:p.x, y:p.y, citySkill:0}
+
+            //使用雷云技能
+            if (b) {
+                var GameTools = __require("GameTools").default
+                var n = parseInt(GameTools.getDataConfigData(20214233)) //1781000
+                var o = n && GameTools.getCitySkillConfigDataBySkinId(n, 0)
+                var r = n && UserData.getCitySkillDataById(n)
+                r && o.times_perday > r.Count && (e = {itemId:0, amount:0, isPurchase:0, x:p.x, y:p.y, citySkill:1})
+            }
+                
+            //迁城
+            var o = e && await send(RequestId.MOVE_CITY_POSITION, e)
+            o  &&  __require("WorldMapMsgs").send(__require("WorldMapMsgs").Names.WorldMapUpdateViewPort, null)
+            return o
+        }
+    },
+
+    //补充体力
+    _charge() {
+        if (this.setting.energy) for(var e of UserData.getItemList()) {
+            if (6 === e.Data.type && e.Amount > 0) return send(RequestId.ITEM_USE, {amount:1, itemid:e.ItemId})
+        }
+        return 0
+    },
+    
+    //体力检查  
+    async _energy() {
+        //计算任务体力
+        var t = UserData.getAttackCostEnergy(!1)
+        var s = UserData.getEnergy(1).Point
+        return (t <= s ? 1 : await this._charge() ? 2 : 0)
+    },
+    
+    //检查编队
+    _precheck() {
+        //单兵检查(含机甲)
+        if (0 == this.setting.preset || 9 == this.setting.preset) {
+            var one = __require("GameTools").default.getAttackerMyArmys().sort((t, e)=>{return t.ArmyData.power - e.ArmyData.power})[0];
+            if (!one || (one.battleMechaData && !helper.battle.mechaOk(one.battleMechaData.mechaId)))
+                return 0
+        }
+        //预设编队检查
+        if (0 < this.setting.preset && this.setting.preset < 9 && this.setting.precheck) { 
+            var march = UserData.PresetMarchData.getPreMarchByIndex(this.setting.preset-1)
+            if (!march) return 0  
+    
+            //检查英雄
+            var heros = __require("HeroController").HeroController.getInstance().getHaveHeroCanMarchList()
+            for (var i = 0; i < march.HeroIds.length; ++i) if (!heros.find((e)=>{return e._id == march.HeroIds[i]})) return 0
+    
+            //检查士兵
+            var armys = __require("GameTools").default.getAttackerMyArmys()
+            for (var group = {}, i = 0; i < armys.length; ++i) {var n=armys[i].ArmyData.id; group[n] = (group[n] ? group[n] : 0) + 1}
+            for (var e of march.Armys) {
+                if (e && e.ArmyId && e.isMecha && !helper.battle.mechaOk(e.mechaId)) return 0
+                if (e && e.ArmyId && !e.isMecha && (!group[e.ArmyId] || (group[e.ArmyId] -= e.Num)<0)) return 0
+            }
+        }
+        return 1
+    },
+
+    //快速攻击入口
+    async process(t) {
+        function distance(a,b) {return Math.sqrt(Math.pow(a.x-b.x, 2)+Math.pow(a.y-b.y, 2))}
+
+        if (!this.state.running) return  //未启用此功能
+
+        //检查是否可攻击
+        if (t && t.BtnLayout.getChildByName("BtnAttack").active && t.cityInfo.shieldTime < ServerTime &&
+            UserData.myMarchNum < UserData.myMarchNumMAX && this._precheck() && await this._energy()) {
+            //迁城
+            var p = t.cityInfo
+            if (this.setting.premove && distance(p, UserData.WorldCoord) > 5) {
+                p = this._getAttackPos(p)
+                p = p && await this._moveCity(p, !0)
+            }
+             
+            //攻击
+            var o = p && await this._attack(t) 
+            o && (this.march = o.marchInfo, this.track = t.cityInfo.pid)
+        }
+    },
+
+    //行军返回
+    async _onback(marchId) {
+        if (this.march && this.march.marchId == marchId) {
+            //撤离
+            if (this.setting.fixmove && 0 == UserData.myMarchNum) {
+                var p = await this._getRetreatPos()
+                p && await this._moveCity(p, !1)
+            }
+            this.march = null, this.track = null
+        }
+    },
+
+    onMarchUpdate(e) {
+        var o = JSON.parse(e);
+        4 == o.marchInfo.state && this._onback(o.marchInfo.marchId);
+    },
+
+    async onUpdateTileInfo(e) {
+        if (e.p && e.p.pid == this.track) {
+            e.x == this.march.target.tx && e.y == this.march.target.ty || await send(RequestId.RECALL_MARCH, {marchId: this.march.marchId})
+            __require("WorldMapTools").default.goToWorldMapByPos({x: e.x, y: e.y, s: e.k, subMap: 0})
+        }
+    },
+
+    _start() {
+        //捕捉行军信息
+        __require("EventCenter").EVENT.on(__require("EventId").EventId.My_March_Update, this.onMarchUpdate, this)
+        this.mc.connect() 
+    },
+
+    _stop() {
+        //关闭行军信息
+        __require("EventCenter").EVENT.off(__require("EventId").EventId.My_March_Update, this.onMarchUpdate, this)
+        this.mc.disconnect() 
+    },
+
+    _update() {
+        this._save()
+        this._render()
+    },
+
+    _save() {
+        setItem("fast-attack", JSON.stringify({setting:this.setting, state:this.state}))
+    },
+
+    async _load() {
+        var o = await getItem("fast-attack")
+        o && (o = JSON.parse(o)) && (this.setting = o.setting, this.state = o.state)
+    },
+
+    _render() {
+        var iframe = helper.dialog.iframe;
+        if (iframe && iframe.name == "fast-attack") {
+            iframe.contentWindow.render(this.setting, this.state)
+        }
+    },
+
+    start() {
+        !this.state.running && (this.state.running = !0, this._start(), this._update())
+    },
+     
+    stop() {
+        this.state.running && (this.state.running = !1, this._stop(), this._update())
+    },
+     
+    apply(setting) {
+        this.setting = setting
+        this._update()
+    },    
+
+    _init_mc() {
+        this.mc = new (__require("FWSMvc").FMessageConnectionAbstract)
+        this.mc.onFMessage_NEW_WORLD_MAP_CONTROLLER = e=>{var t = this.mc[e.data.name]; return t && (e.data.result = t.apply(this, e.data.args)), !0}
+        this.mc.updateTileInfo = this.onUpdateTileInfo.bind(this)
+    },
+
+    _init_fn() {    
+        var a = __require("NWorldCityPopup"), h = this
+        a.default.prototype._onShow || (a.default.prototype._onShow = a.default.prototype.onShow)    
+        a.default.prototype.onBtn_Track = function() {
+            h.track != this.cityInfo.pid ? h.track = this.cityInfo.pid : h.track = null
+            helper.closeUI("NWorldCityPopup")
+        }
+        a.default.prototype.onBtn_FastAttack = function() {
+            h.process(this)
+        }
+        a.default.prototype.onShow = function(t) {
+            this._onShow(t)
+            if (this.BtnLayout.getChildByName("BtnAttack").active && h.state.running) {
+                var clone = cc.instantiate(this.BtnLayout.getChildByName("BtnVisit"))
+                this.BtnLayout.addChild(clone)
+                clone.active = !0
+                clone._name = "BtnTrack", 
+                clone.getComponentInChildren(cc.Label)._string = this.cityInfo.pid != h.track ? "跟踪" : "停止跟踪"
+                clone.getComponent(cc.Button).clickEvents[0].handler = 'onBtn_Track'
+    
+                clone = cc.instantiate(this.BtnLayout.getChildByName("BtnAttack"))
+                this.BtnLayout.addChild(clone)
+                clone._name = "BtnFastAttack"
+                clone.getComponentInChildren(cc.Label)._string = "快速攻击"
+                clone.getComponent(cc.Button).clickEvents[0].handler = "onBtn_FastAttack"
+            }
+        }
+    },
+
+    async init() {
+        await this._load()
+        this._init_mc(), this._init_fn()
+        this.state.running && this._start()
+    },
+
+    free() {
+        this._stop()
+    },
+
+    open() {
+        helper.dialog.open({name:"fast-attack", width:700, height:175, html:this.html})
+        this._render() 
+    }
+}
+
+helper.pro.fastAttack.html = String.raw
+`<html charset="UTF-8">
+<head>
+<style>
+    body{line-height:30px; vertical-align:top; font-size:14px; font-family:"Helvetica","Lucida Console","Microsoft soft";}
+    h3{display:block; margin-top:12px; margin-bottom:8px; text-align:center; width:100%}
+    label{margin-left:2px; margin-right:2px;}
+    span{margin-left:10px; margin-right:0px;}
+    input{color:#333;border:1px solid #999; border-radius:3px; outline-style:none; margin-right:12px; padding-top:2px; height:20px;}
+    input[type="checkbox"]{margin-right:1px; vertical-align:top; margin-top:8px; width:14px; height:14px;}
+    select{color:#333; border:1px solid #999; border-radius:4px; outline-style:none; margin-left:0px; padding-top:1px; height:20px; }
+    button{border:1px solid #999; border-radius:3px; outline-style:none; text-align:center; margin-top:0px; width:60px; height:22px;}
+    button:hover{background-color:#ccc;} button:focus{background-color:#ccc;} button:active{transform: translateY(1px);}
+    input::-webkit-input-placeholder{color: #aaa;}
+    #state{margin-left:10px; margin-top:8px; text-align:center; height:20px}
+    #action{margin-left:240px; margin-top:8px; text-align:center; width:80px;}
+    div.panel{border:1px solid silver; border-radius:6px; margin:8px; padding:4px; padding-top:8px; padding-left:12px; box-shadow: 3px 3px 6px gray;}
+    .combo-box{display:inline-block; position:relative;} .combo-list{width:70px;} .combo-edit{position:absolute; padding-top:1px; width:50px; height:18px; left:1px; top:1px; border:0px;}
+<\/style>
+<\/script>      
+<script>
+    function $(a) {
+        return a && '#'==a[0] && document.getElementById(a.substring(1))
+    }
+
+    function apply() {
+        var setting = {}
+        setting.premove = $("#premove").checked
+        setting.fixmove = $("#fixmove").checked
+        setting.block = Number($("#block").value)
+        setting.preset = Number($("#preset").value)
+        setting.precheck = $("#precheck").checked
+        setting.energy = $("#energy").checked
+        parent.helper.pro.fastAttack.apply(setting)
+    }
+
+    function render(setting, state) {
+        $("#premove").checked = setting.premove
+        $("#fixmove").checked = setting.fixmove
+        $("#block").value = setting.block
+        $("#preset").value = setting.preset
+        $("#precheck").checked = setting.precheck
+        $("#energy").checked = setting.energy
+
+        $("#state").innerText = state.running ? "运行中" : "未运行"
+        $("#state").style.backgroundColor = state.running ? "greenyellow" : "#aaa"
+        $("#state").style.borderRadius = "2px"
+
+        $("#action").innerText = state.running ? "停止" : "启动"
+    }
+
+    function action() {
+        var o = parent.helper.pro.fastAttack
+        o.state.running ? o.stop() : o.start()
+    }
+<\/script>
+<\/head>
+<body>
+    <h3>一键快速攻击<\/h3>
+    <div class="panel">
+        <input type="checkbox" id="premove" onclick="apply()"><label>攻击前迁城<\/label>
+        <span><\/span>
+        <input type="checkbox" id="fixmove" onclick="apply()"><label>攻击后迁城<\/label>
+        <span><\/span>
+        <label>区域:<\/label>
+        <select id="block" name="block" onchange="apply()">
+            <option value=0>全地图<\/option>
+            <option value=1>区域1<\/option>
+            <option value=2>区域2<\/option>
+            <option value=3>区域3<\/option>
+            <option value=4>区域4<\/option>
+            <option value=5>区域5<\/option>
+            <option value=6>区域6<\/option>
+            <option value=7>区域7<\/option>
+            <option value=8>区域8<\/option>
+            <option value=9>区域9<\/option>
+        <\/select>
+        <span><\/span>
+        <label>编队:<\/label>
+        <select class="combo-list" id="preset" onchange="apply()">
+            <option value="1">编队1<\/option>
+            <option value="2">编队2<\/option>
+            <option value="3">编队3<\/option>
+            <option value="4">编队4<\/option>
+            <option value="5">编队5<\/option>
+            <option value="6">编队6<\/option>
+            <option value="7">编队7<\/option>
+            <option value="8">编队8<\/option>
+        <\/select>
+        <span><\/span>
+        <input type="checkbox" id="precheck" onclick="apply()"><label>检查行军<\/label>
+        <span><\/span>
+        <input type="checkbox" id="energy" onclick="apply()"><label>补充体力<\/label>
+        <br>
+        <label style="color:purple;">激活此功能后，在点击对方城市弹出窗口界面点击"快速攻击"按钮可自动发起攻击<\/label>
+    <\/div>
+    <span id="state">未运行<\/span>
+    <button id="action" onclick="action()">启动<\/button>
+<\/body>
+<\/html>`
+
+//-------------------------------------------------------------------------------------------------
+//宝藏商店道具
+helper.pro.treasureShop && helper.pro.treasureShop.free()
+helper.pro.treasureShop = {
+    setting: { 
+        items:[
+            {id: 10171, selected: !1},   //职业道具自选宝箱(200)
+            {id: 10172, selected: !1},   //职业道具自选宝箱(100)
+            {id: 10173, selected: !1},   //橙色万能碎片(300)
+            {id: 10174, selected: !1},   //橙色万能碎片(150) 
+            {id: 10175, selected: !1},   //紫色万能碎片(60)
+            {id: 10176, selected: !1},   //紫色万能碎片(30) 
+            {id: 10177, selected: !1},   //陆军英雄专属技能宝箱(140)
+            {id: 10178, selected: !1},   //海军英雄专属技能宝箱(140)
+            {id: 10179, selected: !1},   //空军英雄专属技能宝箱(140)
+            {id: 10180, selected: !1},   //陆军英雄专属技能宝箱(70) 
+            {id: 10181, selected: !1},   //海军英雄专属技能宝箱(70) 
+            {id: 10182, selected: !1},   //空军英雄专属技能宝箱(70) 
+            {id: 10183, selected: !1},   //橙色经验书(90) 
+            {id: 10184, selected: !1},   //橙色经验书(45) 
+            {id: 10185, selected: !1},   //紫色经验书(30) 
+            {id: 10186, selected: !1},   //紫色经验书(15) 
+            {id: 10187, selected: !1},   //训练加速1小时(15) 
+            {id: 10188, selected: !1},   //职业天赋加速8小时(120)
+            {id: 10189, selected: !1},   //金币砰砰宝箱(60)
+            {id: 10190, selected: !1},   //科技道具自选箱(20)
+            {id: 10191, selected: !1},   //石油50K(50)
+            {id: 10192, selected: !1},   //粮食50K(50)
+            {id: 10193, selected: !1},   //高级招募券(75)
+            {id: 10194, selected: !1},   //精英抽卡券(20)
+            {id: 10195, selected: !1},   //护盾24小时(100) 
+            {id: 10196, selected: !1},   //迁城(75)
+            {id: 10197, selected: !1},   //中级装饰箱(25)
+            {id: 10198, selected: !1},   //高级装饰箱(250) 
+            {id: 10199, selected: !1},   //泰温碎片(200)
+            {id: 10200, selected: !1},   //萨姆碎片(200)
+            {id: 10201, selected: !1},   //希度碎片(200)
+            {id: 10202, selected: !1},   //梅莉达碎片(200) 
+            {id: 10203, selected: !1},   //克洛伊碎片(200) 
+            {id: 10204, selected: !1},   //娜蒂娅碎片(200) 
+            {id: 10205, selected: !1},   //爱德华碎片(200) 
+            {id: 10206, selected: !1},   //齐扎阁夫人碎片(200)
+            {id: 10207, selected: !1},   //李红玉碎片(200) 
+            {id: 10208, selected: !1},   //天牧碎片(200)
+            {id: 10209, selected: !1},   //泰蕾莎碎片(200) 
+            {id: 10210, selected: !1},   //索维吉碎片(200) 
+            {id: 10211, selected: !1},   //泰温碎片(100)
+            {id: 10212, selected: !1},   //萨姆碎片(100)
+            {id: 10213, selected: !1},   //希度碎片(100)
+            {id: 10214, selected: !1},   //梅莉达碎片(100) 
+            {id: 10215, selected: !1},   //克洛伊碎片(100) 
+            {id: 10216, selected: !1},   //娜蒂娅碎片(100) 
+            {id: 10217, selected: !1},   //爱德华碎片(100) 
+            {id: 10218, selected: !1},   //齐扎阁夫人碎片(100) 
+            {id: 10219, selected: !1},   //李红玉碎片(100) 
+            {id: 10220, selected: !1},   //天牧碎片(100)
+            {id: 10221, selected: !1},   //泰蕾莎碎片(100) 
+            {id: 10222, selected: !1},   //索维吉碎片(100) 
+            {id: 10223, selected: !1},   //李艺媛碎片(200) 
+            {id: 10224, selected: !1},   //弗里德曼·赫兹碎片(200)
+            {id: 10225, selected: !1},   //李艺媛碎片(100)
+            {id: 10226, selected: !1}    //弗里德曼·赫兹碎片(100)
+        ]
+    },
+    state: {
+        counter: [], 
+        lastid: "0",
+        running: !1
+    },
+    history: [],
+
+    _price(id) {
+        var o = __require("TableManager").TABLE.getTableDataById(__require("TableName").TableName.TREASURE_SHOP, id.toString())
+        return o && o.price_shop
+    },
+
+    _iname(id) {
+        var a = __require("TableManager").TABLE.getTableDataById(__require("TableName").TableName.TREASURE_SHOP, id.toString())
+        , l = a && __require("TableManager").TABLE.getTableDataById(__require("TableName").TableName.ITEM, a.item_id.toString())
+        return l && __require("LocalManager").LOCAL.getText(l.name.toString())
+    },
+
+    _discount(id) {
+        var o = __require("TableManager").TABLE.getTableDataById(__require("TableName").TableName.TREASURE_SHOP, id.toString())
+        return o && o.cut_off
+    },
+
+    _log(id) {
+        this.history.splice(0, this.history.length-29)
+        this.history.push({time: ServerTime, id: id})
+        this._update()    
+    },
+
+    async _execute() {
+        //获取最新宝藏商店
+        var o = await send(RequestId.GET_TREASURE_MAP_DATA_BY_TYPE, {type:3, prePageLastId:this.state.lastid})
+        if (o && o.lastOtherDataId && o.otherDataList) {
+            this.state.lastid = o.lastOtherDataId
+            for (var shop of o.otherDataList) {
+                //获取宝藏道具
+                var a = await send(RequestId.GET_TREASURE_MAP_WORLD_SHOP, {id:shop.id})
+                a && a.data && (a = JSON.parse(a.data)) 
+                for(var e of a.items) {
+                    //第一次出现则插入设置表（默认未选中）
+                    var s = this.setting.items.find(i=>i.id == e.shopId)
+                    s || this.setting.items.push(s = {id:e.shopId, selected:!1})
+
+                    //获取道具价格 
+                    if (s.selected && e.num>0 && UserData.Resource.Gold >= this._price(e.shopId)) {
+                        //购买宝藏道具
+                        var o = await send(RequestId.BUY_IN_TREASURE_MAP_WORLD_SHOP, {shopId:e.shopId, amount:1, id:shop.id, num:1})
+                        o && o.reward && (
+                            s = this.state.counter.find(i=>i.id == e.shopId),
+                            s || this.state.counter.push(s = {id:e.shopId, count:0}),  //插入
+                            s.count++, this._log(e.shopId)
+                        )
+                    }
+                }
+            }
+            this._update()
+        }
+    },
+
+    _onTimer() {
+        this._execute()
+    },
+
+    _start() {
+        var interval = 837981059306 === UserData.UID ? 10000 : 30000
+        this.timer || (this.timer = setInterval(this._onTimer.bind(this), interval))
+    },
+    
+    _stop() {
+        this.timer && (clearInterval(this.timer), this.timer = 0)
+    },
+        
+    _update() {
+        this._save()
+        this._render()
+    },
+
+    _save() {
+        setItem("treasure-shop", JSON.stringify({setting:this.setting, state:this.state, history:this.history}))
+    },
+
+    async _load() {
+        var o = await getItem("treasure-shop")
+        o && (o = JSON.parse(o)) && (this.setting = o.setting, this.state.running = o.state.running, this.history = o.history)
+    },
+
+    _render() {
+        function timestr(t) {var a=new Date(t*1000); return (a.getMonth()+1)+'-'+a.getDate()+" "+a.getHours()+":"+a.getMinutes().toString().padStart(2,'0')+":"+a.getSeconds().toString().padStart(2,'0')}
+        function logstr(e) {return timestr(e.time) + '  消费' + this._price(e.id) + '钻石，购入' + this._iname(e.id)}
+   
+        var iframe = helper.dialog.iframe;
+        if (iframe && iframe.name == "treasure-shop") {
+            var items = [], history = []
+            this.setting.items.forEach(e=>items.push({id:e.id, selected:e.selected, name:this._iname(e.id), price:this._price(e.id), discount:this._discount(e.id)}))
+            items.sort((a,b)=>{return this._price(a.id) == this._price(b.id) ? a.id-b.id : this._price(a.id) - this._price(b.id)})
+            for (var i=this.history.length-1; i>=0; --i) history.push(logstr.call(this, this.history[i]))
+            iframe.contentWindow.render(items, history, this.state)
+        }
+    },
+
+    start() {
+        !this.state.running && (this.state.running = !0, this.state.lastid="0", this._start(), this._update())
+    },
+     
+     stop() {
+        this.state.running && (this.state.running = !1, this._stop(), this._update())
+    },
+     
+    apply(items) {
+        for (var a of items) this.setting.items.find(e=>e.id == a.id && (e.selected = a.selected, !0))
+        this._save()
+    },
+     
+    async init() {
+        await this._load()
+        this.state.running && this._start()
+    },
+
+    free() {
+        this._stop()
+    },
+
+    dayInit() {
+        this.state.counter = [], this._update()
+    },
+
+    open() {
+        helper.dialog.open({name:"treasure-shop", width:570, height:440, html:this.html})
+        this._render()
+    }
+}
+
+helper.pro.treasureShop.html = String.raw
+`<html charset="UTF-8">
+<head>
+<style>
+    body{line-height:30px; vertical-align:top; font-size:14px; font-family:"Helvetica","Lucida Console","Microsoft soft";}
+    h3{display:block; margin-top:12px; margin-bottom:8px; text-align:center; width:100%}
+    input[type="checkbox"]{margin-right:1px; vertical-align:top; margin-top:8px; width:14px; height:14px;}
+    button{border:1px solid #999; border-radius:3px; outline-style:none; text-align:center; margin-top:0px; width:60px; height:22px;}
+    button:hover{background-color:#ccc;} button:focus{background-color:#ccc;} button:active{transform: translateY(1px);}
+    #counter{display:inline-block; color:green; margin-left:123px; width:130px;}
+    #state{margin-left:10px; margin-top:8px; text-align:center; height:20px}
+    #action{margin-left:174px; margin-top:8px; text-align:center; width:80px;}
+    div.panel{border:1px solid silver; border-radius:6px; margin:8px; padding:4px; padding-left:8px; padding-right:0px; box-shadow:3px 3px 6px gray;}
+    #items{height:210px; overflow-x:hide; overflow-y:auto;}
+    #history{height:100px; line-height:25px; padding-left:4px; overflow-x:hide; overflow-y:auto;} 
+    div.item{display:inline-block; height:28px; margin:0px; }
+    span[name="name"]{display:inline-block; margin-left:2px; width:156px} span[name="price"]{display:inline-block; margin-left:2px; width:120px} span[name="discount"]{display:inline-block; margin-left:2px; width:110px} span[name="count"]{color:purple;}
+<\/style>
+<\/script>      
+<script>
+    function $(a) {
+        return a && '#'==a[0] && document.getElementById(a.substring(1))
+    }
+
+    function apply() {
+        var items = [];
+        for(var div of $("#items").children) {
+            items.push({id:Number(div.id), selected:div.children["selected"].checked})
+        }
+        parent.helper.pro.treasureShop.apply(items)
+    }
+
+    function _html(item) {
+        return '<div class="item" id="' + item.id + '"><input name="selected" type="checkbox" onclick="apply()"><span name="name"><\/span><span name="price"><\/span><span name="discount"><\/span><span name="count"><\/span><\/div>'
+    }
+
+    function render(items, history, state) {
+        for (var html="", i=0; i<items.length; ++i) html = html.concat(_html(items[i]))
+        $("#items").innerHTML = html
+
+        for (var item of items) {
+            var e = $('#'+item.id)
+            e.children["selected"].checked = item.selected
+            e.children["name"].innerText = item.name
+            e.children["price"].innerText = '价格：' + item.price + '钻石'
+            e.children["discount"].innerText = '折扣：' + item.discount + '%'
+            for(var c of state.counter) c.id==item.id && c.count>0 && (e.children["count"].innerText='已购买'+c.count+'次')  
+        }
+
+        html = ""
+        history.forEach(e=>html += "" == html ? e : "<br>"+e)
+        $("#history").innerHTML = html
+
+        $("#state").innerText = state.running ? "运行中" : "未运行"
+        $("#state").style.backgroundColor = state.running ? "greenyellow" : "#aaa"
+        $("#state").style.borderRadius = "2px"
+
+        $("#action").innerText = state.running ? "停止" : "启动";
+    }
+
+    function action() {
+        var o = parent.helper.pro.treasureShop
+        o.state.running ? o.stop() : o.start()
+    }
+<\/script>
+<\/head>
+<body>
+    <h3>自动购买宝藏商店道具<\/h3>
+    <div class="panel">
+        <div id="items">
+            <div class="item" id="11001">
+            <\/div>
+        <\/div>
+    <\/div>
+    <div class="panel">
+        <div id="history">
+        <\/div>
+    <\/div>
+    <span id="state">未运行<\/span>
+    <button id="action" onclick="action()">启动<\/button>
+<\/body>
+<\/html>`
+
+
+//-------------------------------------------------------------------------------------------------
+//空投补给活动
+helper.pro.airdropActivity && helper.pro.airdropActivity.free()
+helper.pro.airdropActivity = {
+    setting: [
+        {active:!1, preset:0, prechk:0, count:99999, seconds:99999},
+        {active:!0, preset:1, prechk:1, count:1, seconds:10}
+    ],
+    state:{counter:[0, 0], running:!1},
+
+    _march(ti, preset) {
+        var context = helper.battle.backup()
+        try {
+            Object.assign(new(__require("AirDropPanel").default), {_tileInfo: ti}).onFightClick()
+            return helper.battle.setup(preset, 9999) && helper.battle.march()  //设置英雄和士兵并出征
+        }
+        finally {
+            helper.battle.restore(context)
+        }
+    },
+
+    async _airDrop(point, preset) {
+        var ti = __require("NWorldMapController").default.instance.getTileInfoByCoord(point.x, point.y, UserData.ServerId, 0)
+        if (await helper.battle.mutex.acquire(2000)) {
+            try {
+                return await this._march(ti, preset)        //出征
+            }
+            finally {
+                helper.battle.mutex.release()
+            }
+        }
+    },
+
+    async _speedup(o, seconds) {
+        while (o && o.marchInfo && 1 == o.marchInfo.state && o.marchInfo.marchArrive - ServerTime > seconds) {
+            //520001-行军加速 520002-高级行军加速(优先使用)
+            var m = o.marchInfo.marchId, i = UserData.getItemAmount(520002) ? 520002 : UserData.getItemAmount(520001) ? 520001 : 0
+            o = m && i && await send(RequestId.MARCH_SPEED_UP, {marchId: m, itemId: i}) && await send(RequestId.GET_MARCH_INFO, {marchId: m}) 
+        }    
+    },
+    
+    async _updateMap(b) {
+        var a = __require("NWorldMapController").default.instance, y = __require("NWorldMapMarchController").default.instance
+        var g = __require("NWorldMapTerritoryModel").default.instance, f = __require("NWorldMapData").default.instance, d = __require("WorldMapMsgs")    
+
+        //更新坐标信息
+        var k = UserData.ServerId, r = new Map, s 
+        var o = await send(RequestId.GET_WORLD_INFO, {x: b.x, y: b.y, k: k, rid: 0, width: 14, height: 20, marchInfo: !0, viewLevel: 1})
+        o && o.pointList && o.pointList.forEach(e=>s = a.updateTileInfo(e, 1), s && r.set(s, !0)) 
+        d.send(d.Names.WorldMapUpdateViewPort, r)
+
+        //更新行军信息
+        o && o.marchList && (y.model.dealMarchDataFromNowWorldMarchData(o.marchList, !0), y.model.addMonsterDefenderMarchData())
+        d.send(d.Names.WorldMapMarchsInit, null)
+
+        //更新联盟领地
+        var t = await send(RequestId.GET_TERRITORY_INFO, {x: b.x, y: b.y, k: k, width: 14, height: 20})
+        t && t.infos && (g.clearAlianceTerritory(), g.updateAllianceTerritory(t.infos, !1, k))
+
+        return o
+    },
+
+    //编队检查
+    _precheck(preset, precheck) {
+        //单兵检查(含机甲)
+        if (0 == preset || 9 == preset) {
+            var one = __require("GameTools").default.getAttackerMyArmys().sort((t, e)=>{return t.ArmyData.power - e.ArmyData.power})[0];
+            if (!one || (one.battleMechaData && !helper.battle.mechaOk(one.battleMechaData.mechaId)))
+                return 0
+        }
+        //预设编队检查
+        if (0 < preset && preset < 9 && precheck) { 
+            var heros = __require("HeroController").HeroController.getInstance().getHaveHeroCanMarchList()
+              , armys = __require("GameTools").default.getAttackerMyArmys()
+              , march = UserData.PresetMarchData.getPreMarchByIndex(preset-1)
+            if (!march) return 0
+
+            //检查英雄
+            for (var i = 0; i < march.HeroIds.length; ++i) if (!heros.find((e)=>{return e._id == march.HeroIds[i]})) return !1
+    
+            //检查士兵
+            for (var group = {}, i = 0; i < armys.length; ++i) {var n=armys[i].ArmyData.id; group[n] = (group[n] ? group[n] : 0) + 1}
+            for (var e of march.Armys) {
+                if (e && e.ArmyId && e.isMecha && !helper.battle.mechaOk(e.mechaId)) return !1
+                if (e && e.ArmyId && !e.isMecha && (!group[e.ArmyId] || (group[e.ArmyId] -= e.Num)<0)) return !1
+            }
+        }
+        return 1
+    },
+
+    //检查目标空投
+    _checkTraget(p) {
+        //存在行军?
+        return !Object.values(__require("NWorldMapData").default.instance.marches).find(e=>e.target_tx == p.x && e.target_ty == p.y)
+    },
+
+    async _process(e, t) {
+        UserData.UID != 837981059306 && await new Promise(resolve=>{setTimeout(resolve, Math.floor(500 + Math.random()*1500))})
+        var n = this.state.counter[t], s = this.setting[t] 
+        if (s && n < s.count && UserData.myMarchNumMAX > UserData.myMarchNum && this._precheck(s.preset, s.prechk)) {
+            //获取坐标并更新局部地图
+            var p = __require("GameTools").default.getWorldPosByServerPointId(e.pt)
+            var o = await this._updateMap(p) && this._checkTraget(p) && await this._airDrop(p, s.preset)
+            o && o.marchInfo && (this.state.counter[t]++, await this._speedup(o, s.seconds), this._update())
+        }
+    },
+    
+    //e:{op:1, pt:32412, info:{id:24600, item:14, point:32412, state:3}} 
+    //pt及info.point为坐标，op:1-新增，2修改状态
+    //info.id：第一位"2"表示第二轮，2,3位"46"表示第47个补给， 
+    //info.item=14表示是第14号箱子(1-50为普通补给，51-55为金色补给)
+    //info.state=0为初始状态，1为被拉走，3估计是到达遗迹，没见到2（猜测2是被抢）
+    //__require("TableManager").TABLE.getTableDataById("deploy", e.info.item.toString())，返回对象的plot_quality=1表示普通补给，3表示金色补给
+    onWorldAirDropUpdate(e) {
+        var i = e.info.item, t = this.setting[0].active && (i > 0 && i <= 50) ? 0 : this.setting[1].active && i > 50 ? 1 : -1
+        e.op == 1 && e.info.state == 0 && (1===t || !this.setting[1].active || this.setting[1].count <= this.state.counter[1]) && this._process(e, t)
+    },
+
+    _start() {
+        //捕捉空投事件
+        __require("EventCenter").EVENT.on(__require("EventId").EventId.WorldAirDropUpdate, this.onWorldAirDropUpdate, this)
+    },
+
+    _stop() {
+        //关闭空投事件
+        __require("EventCenter").EVENT.off(__require("EventId").EventId.WorldAirDropUpdate, this.onWorldAirDropUpdate, this)
+    },
+
+    _update() {
+        this._save()
+        this._render()
+    },
+ 
+    _save() {
+        setItem("airdrop-activity", JSON.stringify({setting:this.setting, state:this.state}))        
+    },
+ 
+    async _load() {
+        var o = await getItem("airdrop-activity")
+        o && (o = JSON.parse(o)) && (this.setting = o.setting, this.state = o.state)
+    },
+ 
+     _render() {
+        var iframe = helper.dialog.iframe
+        iframe && "airdrop-activity" == iframe.name && iframe.contentWindow.render(this.setting, this.state)
+    },
+ 
+    start() {
+        !this.state.running && (this.state.running = !0, this._start(), this.state.counter = [0, 0], this._update())
+    },
+     
+    stop() {
+        this.state.running && (this.state.running = !1, this._stop(), this._update())
+    },
+
+    apply(setting) {
+        this.setting = setting
+        this._update()
+    },
+    
+    async init() {
+        await this._load()
+        this.state.running && this._start()
+    },
+
+    free() {
+        this._stop()
+    },
+
+    dayInit() {
+        this.state.counter = [0, 0], this._update()
+    },
+
+    open() {
+        helper.dialog.open({name:"airdrop-activity", width:610, height:258, html:this.html})
+        this._render() 
+    }
+}
+
+helper.pro.airdropActivity.html = String.raw
+`<html charset="UTF-8">
+<head>
+<style>
+    body{line-height:30px; vertical-align:top; font-size:14px; font-family:"Helvetica","Lucida Console","Microsoft soft";}
+    h3{display:block; margin-top:12px; margin-bottom:8px; text-align:center; width:100%}
+    label{margin-left:2px; margin-right:2px;}
+    label.counter{margin-left:4px; width:100%;}
+    span{margin-left:20px; margin-right:0px;}
+    input{color:#333;border:1px solid #999; border-radius:3px; outline-style:none; margin-right:12px; padding-top:2px; height:20px;}
+    input[type="checkbox"]{margin-right:1px; vertical-align:top; margin-top:8px; width:14px; height:14px;}
+    select{color:#333; border:1px solid #999; border-radius:4px; outline-style:none; margin-left:0px; padding-top:1px; height:20px; }
+    button{border:1px solid #999; border-radius:3px; outline-style:none; text-align:center; margin-top:0px; width:60px; height:22px;}
+    button:hover{background-color:#ccc;} button:focus{background-color:#ccc;} button:active{transform: translateY(1px);}
+    input::-webkit-input-placeholder{color: #aaa;}
+    #counter{display:inline-block; color:green; margin-left:123px; width:130px;}
+    #state{margin-left:10px; margin-top:8px; text-align:center; height:20px}
+    #action{margin-left:200px; margin-top:8px; text-align:center; width:80px;}
+    div.panel{border:1px solid silver; border-radius:6px; margin:8px; padding:4px; padding-top:8px; padding-left:12px; box-shadow: 3px 3px 6px gray;}
+    .combo-box{display:inline-block; position:relative;} .combo-list{width:70px;} .combo-edit{position:absolute; padding-top:1px; width:50px; height:18px; left:1px; top:1px; border:0px;}
+<\/style>
+<\/script>      
+<script>
+    function $(a) {
+        return a && '#'==a[0] && document.getElementById(a.substring(1))
+    }
+
+    function editchange(edit) {
+        edit.setAttribute("value", Number(edit.value.replace('次','').replace('秒','').replace('内',''))); 
+        apply();   
+    }
+
+    function listchange(list) {
+        var edit = list.parentNode.children["edit"];
+        var i = list.selectedIndex;
+        edit.value = list.options[i].innerText;
+        edit.setAttribute("value", list.options[i].value);
+        list.selectedIndex = 0;
+        apply();
+    }
+
+    function apply() {
+        var setting = [{},{}]
+
+        setting[0].active = $("#normal").children["active"].checked
+        setting[0].preset = Number($("#normal").children["preset"].value)
+        setting[0].count = Number($("#normal").children["count"].children["edit"].getAttribute("value"))
+        setting[0].seconds = Number($("#normal").children["seconds"].children["edit"].getAttribute("value"))
+        setting[0].precheck = $("#normal").children["precheck"].checked; 
+
+        setting[1].active = $("#orange").children["active"].checked
+        setting[1].preset = Number($("#orange").children["preset"].value)
+        setting[1].count = Number($("#orange").children["count"].children["edit"].getAttribute("value"))
+        setting[1].seconds = Number($("#orange").children["seconds"].children["edit"].getAttribute("value"))
+        setting[1].precheck = $("#orange").children["precheck"].checked; 
+
+        parent.helper.pro.airdropActivity.apply(setting)
+    }
+
+    function render(setting, state) {
+        $("#normal").children["active"].checked = setting[0].active
+        $("#normal").children["preset"].value = setting[0].preset
+        $("#normal").children["count"].children["edit"].value = (99999 == setting[0].count) ? '无限次' : setting[0].count + '次'
+        $("#normal").children["count"].children["edit"].setAttribute("value",setting[0].count)
+        $("#normal").children["seconds"].children["edit"].value = (99999 == setting[0].seconds) ? '不加速' :setting[0].seconds + '秒内'
+        $("#normal").children["seconds"].children["edit"].setAttribute("value", setting[0].seconds)
+        $("#normal").children["precheck"].checked = setting[0].precheck
+        $("#normal").children["counter"].innerText = state.counter[0] ? '已运输空投' + state.counter[0] +'次' : '　'
+        $("#normal").children["counter"].style.color = state.counter[0] >= setting[0].count ? "green" : state.running ? "purple" : "black"
+
+        $("#orange").children["active"].checked = setting[1].active
+        $("#orange").children["preset"].value = setting[1].preset
+        $("#orange").children["count"].children["edit"].value = (99999 == setting[1].count) ? '无限次' : setting[1].count + '次'
+        $("#orange").children["count"].children["edit"].setAttribute("value",setting[1].count)
+        $("#orange").children["seconds"].children["edit"].value = (99999 == setting[1].seconds) ? '不加速' :setting[1].seconds + '秒内'
+        $("#orange").children["seconds"].children["edit"].setAttribute("value", setting[1].seconds)
+        $("#orange").children["precheck"].checked = setting[1].precheck
+        $("#orange").children["counter"].innerText = state.counter[1] ? '已运输空投' + state.counter[1] +'次' : '　'
+        $("#orange").children["counter"].style.color = state.counter[1] >= setting[1].count ? "green" : state.running ? "purple" : "black"
+
+        $("#state").innerText = state.running ? "运行中" : "未运行"
+        $("#state").style.backgroundColor = state.running ? "greenyellow" : "#aaa"
+        $("#state").style.borderRadius = "2px"
+
+        $("#action").innerText = state.running ? "停止" : "启动"
+    }
+
+    function action() {
+        var o = parent.helper.pro.airdropActivity
+        o.state.running ? o.stop() : o.start()
+    }
+<\/script>
+<\/head>
+<body>
+    <h3>空投补给活动<\/h3>
+    <div class="panel" id="orange">
+        <input type="checkbox" name="active" onclick="apply()"><label class="label-text">金色空投<\/label>
+        <label>　编队:<\/label>
+        <select class="combo-list" name="preset" onchange="apply()">
+            <option value="0">单兵<\/option>
+            <option value="1">编队1<\/option>
+            <option value="2">编队2<\/option>
+            <option value="3">编队3<\/option>
+            <option value="4">编队4<\/option>
+            <option value="5">编队5<\/option>
+            <option value="6">编队6<\/option>
+            <option value="7">编队7<\/option>
+            <option value="8">编队8<\/option>
+            <option value="9">自动<\/option>
+        <\/select>
+        <input type="checkbox" name="precheck" onclick="apply()"><label>检查行军<\/label>
+        <label>　次数:<\/label>
+        <div class="combo-box" name="count">
+            <select class="combo-list" name="list" onchange="listchange(this)">
+                <option style="display:none"><\/option>
+                <option value="1">1次<\/option>
+                <option value="5">5次<\/option>
+                <option value="10">10次<\/option>
+                <option value="99999">无限次<\/option>
+            <\/select>
+            <input class="combo-edit" name="edit" onchange="editchange(this)">
+        <\/div>
+        <label>　加速:<\/label>
+        <div class="combo-box" name="seconds">
+            <select class="combo-list" name="list" onchange="listchange(this)">
+                <option style="display:none"><\/option>
+                <option value="5">5秒内<\/option>
+                <option value="10">10秒内<\/option>
+                <option value="99999">不加速<\/option>
+            <\/select>
+            <input class="combo-edit" name="edit" onchange="editchange(this)">
+        <\/div>
+        <br>
+        <label class="counter" name="counter">　<\/label>
+    <\/div>
+    <div class="panel" id="normal">
+        <input type="checkbox" name="active" onclick="apply()"><label class="label-text">普通空投<\/label>
+        <label>　编队:<\/label>
+        <select class="combo-list" name="preset" onchange="apply()">
+            <option value="0">单兵<\/option>
+            <option value="1">编队1<\/option>
+            <option value="2">编队2<\/option>
+            <option value="3">编队3<\/option>
+            <option value="4">编队4<\/option>
+            <option value="5">编队5<\/option>
+            <option value="6">编队6<\/option>
+            <option value="7">编队7<\/option>
+            <option value="8">编队8<\/option>
+            <option value="9">自动<\/option>
+        <\/select>
+        <input type="checkbox" name="precheck" onclick="apply()"><label>检查行军<\/label>
+        <label>　次数:<\/label>
+        <div class="combo-box" name="count">
+            <select class="combo-list" name="list" onchange="listchange(this)">
+                <option style="display:none"><\/option>
+                <option value="1">1次<\/option>
+                <option value="5">5次<\/option>
+                <option value="10">10次<\/option>
+                <option value="99999">无限次<\/option>
+            <\/select>
+            <input class="combo-edit" name="edit" onchange="editchange(this)">
+        <\/div>
+        <label>　加速:<\/label>
+        <div class="combo-box" name="seconds">
+            <select class="combo-list" name="list" onchange="listchange(this)">
+                <option style="display:none"><\/option>
+                <option value="5">5秒内<\/option>
+                <option value="10">10秒内<\/option>
+                <option value="99999">不加速<\/option>
+            <\/select>
+            <input class="combo-edit" name="edit" onchange="editchange(this)">
+        <\/div>
+        <br>
+        <label class="counter" name="counter">　<\/label>
+    <\/div>
+    <span id="state">未运行<\/span>
+    <button id="action" onclick="action()">启动<\/button>
+<\/body>
+<\/html>`
+
+
+//-------------------------------------------------------------------------------------------------
+//深海寻宝活动
+helper.pro.deepseaTreasure && helper.pro.deepseaTreasure.free()
+helper.pro.deepseaTreasure = {
+    state: {
+        running: !1
+    },
+    history: [],
+    
+    get aid() {
+        var a = __require("ActivityController").ActivityController.Instance.getActivityList()
+        var e = a.find(e=>'ActivityDeepSeaTreasure' == e.showUiType)
+        return e && e.id 
+    },
+
+    get slots() {
+        var a = __require("ActivityController").ActivityController.Instance._activityMap[this.aid] 
+        return a && a.extra &&a.extra.slots
+    },
+
+    get active() {
+        var a = __require("ActivityController").ActivityController.Instance._activityMap[this.aid] 
+        return a && a.endtime > ServerTime
+    },
+
+    _iname(id) {
+        var t = __require("TableManager"), n = __require("TableName"), l = __require("LocalManager")
+        var o = t.TABLE.getTableDataById(n.TableName.ITEM, id.toString())
+        return o && l.LOCAL.getText(o.name)
+    },
+    
+    async _reward() {
+        for(var i=0; i<this.slots.length; i++) {
+            var e = Object.assign({}, this.slots[i])
+            e.s && e.st>0 && e.et<ServerTime && await send(RequestId.AWARD_EXPLORE_SEA, {aid: this.aid, index: i}) && this._log(e)
+        }
+    },
+
+    async _explore() {
+        if (this.active) for(var i=0; i<this.slots.length; i++) {
+            var e = this.slots[i]
+            !e.s && !e.st && !e.et && await send(RequestId.START_EXPLORE_SEA, {aid: this.aid, index: i}) && setTimeout((i)=>this.slots && this._log(this.slots[i]), 500, i)
+        }
+    },
+
+    _log(a) {
+        this.history.splice(0, this.history.length-29)
+        this.history.push({time: ServerTime, item: a})
+        this._update()
+    },
+
+    async _execute() {
+        this.slots && (await this._reward(), await this._explore()) 
+    },
+
+    _onTimer() {
+        this._execute()
+    },
+
+    _start() {
+        this.timer || (this.timer = setInterval(this._onTimer.bind(this), 1000))
+    },
+
+    _stop() {
+        this.timer && (clearInterval(this.timer), this.timer = 0)
+    },
+
+    _update() {
+        this._save()
+        this._render()
+    },
+
+    _save() {
+        setItem("deepsea-treasure", JSON.stringify({state:this.state, history:this.history}))
+    },
+
+    async _load() {
+        var o = await getItem("deepsea-treasure")
+        o && (o = JSON.parse(o)) && (this.state = o.state, this.history = o.history)
+    },
+
+    _render() {
+        function timestr(t) {var a=new Date(); return a.setTime(t*1000), (a.getMonth()+1)+'-'+a.getDate()+" "+a.getHours()+":"+a.getMinutes().toString().padStart(2,'0')+":"+a.getSeconds().toString().padStart(2,'0')}
+        function logstr(e) {return timestr(e.time) + ' ' + (e.time > e.item.et ? '领取' : '探到') + this._iname(e.item.i)}
+
+        var iframe = helper.dialog.iframe;
+        if (iframe && iframe.name == "deepsea-treasure") {
+            for (var history=[], i=this.history.length-1; i>=0; --i) history.push(logstr.call(this, this.history[i]))
+            iframe.contentWindow.render(this.slots, history, this.state)
+        }
+    },
+
+    start() {
+        !this.state.running && (this.state.running = !0, this._start(), this._update())
+    },
+     
+    stop() {
+        this.state.running && (this.state.running = !1, this._stop(), this._update())
+    },
+     
+    async init() {
+        await this._load()
+        this.state.running && this._start()
+    },
+
+    free() {
+        this._stop()
+    },
+
+    open() {
+        helper.dialog.open({name:"deepsea-treasure", width:500, height:360, html:this.html})
+        this._render() 
+    }
+}
+
+helper.pro.deepseaTreasure.html = String.raw
+`<html charset="UTF-8">
+<head>
+<style>
+    body{line-height:26px; vertical-align:top; font-size:14px; font-family:"Helvetica","Lucida Console","Microsoft soft";}
+    h3{display:block; margin-top:12px; margin-bottom:8px; text-align:center; width:100%}
+    label{margin-left:2px; margin-right:2px;}
+    label.caption{display:inline-block; width:80px;}
+    span{margin-left:20px; margin-right:0px;}
+    input{color:#333;border:1px solid #999; border-radius:3px; outline-style:none; margin-right:12px; padding-top:2px; height:20px;}
+    input[type="radio"]{margin-right:1px; vertical-align:top; margin-top:6px; width:14px; height:14px;}
+    select{color:#333; border:1px solid #999; border-radius:4px; outline-style:none; margin-left:0px; padding-top:1px; height:20px; }
+    button{border:1px solid #999; border-radius:3px; outline-style:none; text-align:center; margin-top:0px; width:60px; height:22px;}
+    button:hover{background-color:#ccc;} button:focus{background-color:#ccc;} button:active{transform: translateY(1px);}
+    input::-webkit-input-placeholder{color: #aaa;}
+    div.panel{border:1px solid silver; border-radius:6px; margin:8px; padding:4px; padding-left:8px; padding-right:0px; box-shadow: 3px 3px 6px gray;}
+    #state{margin-left:10px; margin-top:8px; text-align:center; height:20px}
+    #action{margin-left:145px; margin-top:8px; text-align:center; width:80px;}
+    #slots{height:75px;} .col-1{display:inline-block; width:90px;} .col-2{display:inline-block; width:120px;} .col-3{display:inline-block; width:110px;}
+    #history{height:160px; line-height:25px; padding-left:8px; overflow-x:hide; overflow-y:auto;} 
+    div.item{padding:0px;margin:0px}
+    span[name="cname"]{display:inline-block; margin-left:2px; width:156px} span[name="vtime"]{display:inline-block; margin-left:2px; width:100px} span[name="lefttime"]{display:inline-block; margin-left:2px; width:160px}
+<\/style>
+<\/script>      
+<script>
+    function $(a) {
+        return a && '#'==a[0] && document.getElementById(a.substring(1))
+    }
+
+    function onTimer() {
+        function format(t) {
+            var h = Math.floor(t\/3600)
+            var m = Math.floor((t-h*3600)\/60)
+            var s = t-h*3600-m*60
+            return (100+h).toString().substring(1) + ':' + (100+m).toString().substring(1) + ':' + (100+s).toString().substring(1)
+        }
+
+        for (var e of $("#slots").children) {
+            var o = e.children["expire"], v = e.children["iname"], t = parent.ServerTime
+            o && o.value && 0==o.value.s && (o.innerText = '未探测')
+            o && o.value && 1==o.value.s && o.value.et<t && (o.innerText = '待领取')
+            o && o.value && 1==o.value.s && o.value.et>=t && (o.innerText = format(o.value.et-t))
+            o && o.value && o.value.i && (v.innerText = parent.helper.pro.deepseaTreasure._iname(o.value.i))
+        } 
+    }
+
+    function render(slots, history, state) {
+        if (slots) for(var i=0; i<slots.length; ++i) $("#slot-"+i).children["expire"].value = slots[i] 
+
+        for(var html = "", i=0; i<history.length; ++i) html += "" == html ? history[i] : "<br>" + history[i]
+        $("#history").innerHTML = html
+
+        $("#state").innerText = state.running ? "运行中" : "未运行"
+        $("#state").style.backgroundColor = state.running ? "greenyellow" : "#aaa"
+        $("#state").style.borderRadius = "2px"
+
+        $("#action").innerText = state.running ? "停止" : "启动";
+
+        window.timer || (window.timer = setInterval(onTimer, 1000))
+        onTimer()
+    }
+
+    function action() {
+        var o = parent.helper.pro.deepseaTreasure
+        o.state.running ? o.stop() : o.start()
+    }
+<\/script>
+<\/head>
+<body>
+    <h3>深海寻宝活动<\/h3>
+    <div class="panel" id="slots">
+        <div id="slot-0">
+            <label class="col-1">Slot#1<\/label>
+            <label class="col-2" name="expire">未开启<\/label>
+            <label class="col-3" name="iname"><\/label>
+        <\/div>
+        <div id="slot-1">
+            <label class="col-1">Slot#2<\/label>
+            <label class="col-2" name="expire">未开启<\/label>
+            <label class="col-3" name="iname"><\/label>
+        <\/div>
+        <div id="slot-2">
+            <label class="col-1">Slot#3<\/label>
+            <label class="col-2" name="expire">未开启<\/label>
+            <label class="col-3" name="iname"><\/label>
+        <\/div>
+    <\/div>
+    <div class="panel">
+        <div id="history">
+        <\/div>
+    <\/div>
+    <span id="state">未运行<\/span>
+    <button id="action" onclick="action()">启动<\/button>
+<\/body>
+<\/html>`
+
+
+//-------------------------------------------------------------------------------------------------
+//矿产大亨活动
+helper.pro.dwarfMiner && helper.pro.dwarfMiner.free()
+helper.pro.dwarfMiner = {
+    setting: {
+        cIndex: 0
+    },
+    state: {
+        running: !1
+    },
+    history: [],
+    
+    get aid() {
+        var a = __require("ActivityController").ActivityController.Instance.getActivityList()
+        var e = a.find(e=>'ActivityDwarfMiner' == e.showUiType)
+        return e && e.id 
+    },
+
+    get data() {
+        var a = __require("ActivityController").ActivityController.Instance._activityMap[this.aid] 
+        return a && a.extra && a.extra.map
+    },
+
+    get active() {
+        var a = __require("ActivityController").ActivityController.Instance._activityMap[this.aid] 
+        return a && a.endtime > ServerTime
+    },
+
+    _iname(id) {
+        var t = __require("TableManager"), n = __require("TableName"), l = __require("LocalManager")
+        var o = t.TABLE.getTableDataById(n.TableName.ITEM, id.toString())
+        return o && l.LOCAL.getText(o.name)
+    },
+
+    _cname(cId) {
+        var t = __require("TableManager"), n = __require("TableName"), l = __require("LocalManager")
+        var o = t.TABLE.getTableDataById(n.TableName.miner_chest_open, cId.toString())
+        o && (o = t.TABLE.getTableDataById(n.TableName.REWARD, o.reward.toString()))
+        o && (o = t.TABLE.getTableDataById(n.TableName.ITEM, o.item))
+        return o && l.LOCAL.getText(o.name)
+    },
+
+    cnum(cId) {
+        var t = __require("TableManager"), n = __require("TableName")
+        var o = t.TABLE.getTableDataById(n.TableName.miner_chest_open, cId.toString())
+        o && (o = t.TABLE.getTableDataById(n.TableName.REWARD, o.reward.toString()))
+        return o && o.num
+    },
+
+    _vtime(cId) {
+        var t = __require("TableManager"), n = __require("TableName")
+        var e = t.TABLE.getTableDataById(n.TableName.miner_chest_open, cId.toString())
+        return e && e.vanish_time
+    },
+    
+    async _reward() {
+        var a = this.data.list.find(e=>e.expireTime > 0 && e.expireTime <= ServerTime)
+        a && (a = await send(RequestId.DWARF_MINER_OPEN_CHEST, {activityID: this.aid, cIndex: a.cIndex}))
+        a && a.chestIndex == this.setting.cIndex && (this.setting.cIndex = null)
+        a && a.reward && this._log(a)
+    },
+
+    async _unlock() {
+        if (!this.data.list.find(e=>e.expireTime > 0)) { 
+            var i = this.setting.cIndex 
+            i || (i = this.data.list.concat().sort((d,e)=>this._vtime(d.cId) - this._vtime(e.cId))[0].cIndex)
+            i && await send(RequestId.DWARF_MINER_UNLOCK_CHEST, {activityID: this.aid, cIndex: i})
+        }
+    },
+
+    async _dig() {
+        var n = Number(__require("GameTools").default.getDataConfigData(15039))
+        while (this.active && this.data.digCount < n && this.data.list.length < 4) {
+            var o = await send(RequestId.DWARF_MINER_DIG, {activityID: this.aid})
+            o && o.reward && this._log(o)
+        }
+    },
+
+    _log(a) {
+        this.history.splice(0, this.history.length-29) 
+        this.history.push({time: ServerTime, item: a})
+        this._update()
+    },
+
+    async _execute() {
+        if (this.data) {
+            await this._reward()
+            await this._dig()
+            await this._unlock() 
+        } 
+    },
+
+
+    _onTimer() {
+        this._execute()
+    },
+
+    _start() {
+        this.timer || (this.timer = setInterval(this._onTimer.bind(this), 1000))
+    },
+
+    _stop() {
+        this.timer && (clearInterval(this.timer), this.timer = 0)
+    },
+
+    _update() {
+        this._save()
+        this._render()
+    },
+
+    _save() {
+        setItem("dwarf-miner", JSON.stringify({setting:this.setting, state:this.state, history:this.history}))
+    },
+
+    async _load() {
+        var o = await getItem("dwarf-miner")
+        o && (o = JSON.parse(o)) && (this.setting = o.setting, this.state = o.state, this.history = o.history)
+    },
+
+    _render() {
+        function timestr(t) {var a=new Date(); return a.setTime(t*1000), (a.getMonth()+1)+'-'+a.getDate()+" "+a.getHours()+":"+a.getMinutes().toString().padStart(2,'0')+":"+a.getSeconds().toString().padStart(2,'0')}
+        function logstr(e) {
+            var str = timestr(e.time)
+            e.item.reward && (str += '  奖励:' + this._iname(e.item.reward.items[0].itemId) + ", 数量:"+e.item.reward.items[0].itemCount)
+            e.item.digCount && (str += '  第' + e.item.digCount + '次挖矿')
+            return str
+        }
+
+        var iframe = helper.dialog.iframe;
+        if (iframe && iframe.name == "dwarf-miner") {
+            var chest = [], history=[]
+            this.data && this.data.list.forEach(e=>chest.push({cIndex:e.cIndex, cname:this._cname(e.cId), vtime:this._vtime(e.cId), expire:e.expireTime}))
+            for (var i=this.history.length-1; i>=0; --i) history.push(logstr.call(this, this.history[i]))
+            iframe.contentWindow.render(this.setting, chest, history, this.state)
+        }
+    },
+
+    start() {
+        !this.state.running && (this.state.running = !0, this._start(), this._update())
+    },
+     
+    stop() {
+        this.state.running && (this.state.running = !1, this._stop(), this._update())
+    },
+     
+    apply(cIndex) {
+        this.setting.cIndex = Number(cIndex)
+        this._update()
+    },
+     
+    async init() {
+        await this._load()
+        this.state.running && this._start()
+    },
+
+    free() {
+        this._stop()
+    },
+
+    open() {
+        helper.dialog.open({name:"dwarf-miner", width:500, height:391, html:this.html})
+        this._render() 
+    }
+}
+
+helper.pro.dwarfMiner.html = String.raw
+`<html charset="UTF-8">
+<head>
+<style>
+    body{line-height:26px; vertical-align:top; font-size:14px; font-family:"Helvetica","Lucida Console","Microsoft soft";}
+    h3{display:block; margin-top:12px; margin-bottom:8px; text-align:center; width:100%}
+    label{margin-left:2px; margin-right:2px;}
+    label.caption{display:inline-block; width:80px;}
+    span{margin-left:20px; margin-right:0px;}
+    input{color:#333;border:1px solid #999; border-radius:3px; outline-style:none; margin-right:12px; padding-top:2px; height:20px;}
+    input[type="radio"]{margin-right:1px; vertical-align:top; margin-top:6px; width:14px; height:14px;}
+    select{color:#333; border:1px solid #999; border-radius:4px; outline-style:none; margin-left:0px; padding-top:1px; height:20px; }
+    button{border:1px solid #999; border-radius:3px; outline-style:none; text-align:center; margin-top:0px; width:60px; height:22px;}
+    button:hover{background-color:#ccc;} button:focus{background-color:#ccc;} button:active{transform: translateY(1px);}
+    input::-webkit-input-placeholder{color: #aaa;}
+    div.panel{border:1px solid silver; border-radius:6px; margin:8px; padding:4px; padding-left:8px; padding-right:0px; box-shadow: 3px 3px 6px gray;}
+    #state{margin-left:10px; margin-top:8px; text-align:center; height:20px}
+    #action{margin-left:140px; margin-top:8px; text-align:center; width:80px;}
+    #chest{height:104px;}
+    #history{height:160px; line-height:25px; padding-left:8px; overflow-x:hide; overflow-y:auto;} 
+    div.item{padding:0px;margin:0px}
+    span[name="cname"]{display:inline-block; margin-left:2px; width:156px} span[name="vtime"]{display:inline-block; margin-left:2px; width:100px} span[name="lefttime"]{display:inline-block; margin-left:2px; width:160px}
+<\/style>
+<\/script>      
+<script>
+    function $(a) {
+        return a && '#'==a[0] && document.getElementById(a.substring(1))
+    }
+
+    function onTimer() {
+        function format(t) {
+            var h = Math.floor(t\/3600)
+            var m = Math.floor((t-h*3600)\/60)
+            var s = t-h*3600-m*60
+            return (100+h).toString().substring(1) + ':' + (100+m).toString().substring(1) + ':' + (100+s).toString().substring(1)
+        }
+
+        for (var e of $("#chest").children) {
+            var o = e.children["expire"]
+            o.value && (o.innerText = format(o.value-parent.ServerTime))
+        } 
+    }
+
+    function apply(e) {
+        var id = e.parentNode.id
+        id && parent.helper.pro.dwarfMiner.apply(id.substring(6));
+    }
+
+    function render(setting, chest, history, state) {
+        var html=""
+        chest.forEach(e=>{
+            html += '<div class="item" id="index_'+e.cIndex+'"><input type="radio" name="prior" onclick="apply(this)">',
+            html += '<span name="cname">'+e.cname+'<\/span>',
+            html += '<span name="vtime">'+(e.vtime\/60)+'小时<\/span>',
+            html += '<span name="expire"><\/span><\/div>'
+        })
+        $("#chest").innerHTML = html
+
+        chest.forEach(e=>$("#index_"+e.cIndex).children["expire"].value = e.expire)
+   
+        html = ""
+        history.forEach(e=>html += "" == html ? e : "<br>"+e)
+        $("#history").innerHTML = html
+
+        chest.length && setting.cIndex && (
+            $("#index_"+setting.cIndex).children["prior"].checked = !0,
+            $("#index_"+setting.cIndex).children["expire"].value == 0 && ( 
+                $("#index_"+setting.cIndex).children["expire"].innerText = "下轮优先",
+                $("#index_"+setting.cIndex).children["expire"].style.color = state.running ? "purple": "black" 
+            )
+        )
+
+        $("#state").innerText = state.running ? "运行中" : "未运行"
+        $("#state").style.backgroundColor = state.running ? "greenyellow" : "#aaa"
+        $("#state").style.borderRadius = "2px"
+
+        $("#action").innerText = state.running ? "停止" : "启动"
+
+        window.timer || (window.timer = setInterval(onTimer, 1000))
+        onTimer()
+    }
+
+    function action() {
+        var o = parent.helper.pro.dwarfMiner
+        o.state.running ? o.stop() : o.start()
+    }
+<\/script>
+<\/head>
+<body>
+    <h3>矿产大亨活动<\/h3>
+    <div class="panel" id="chest">
+    <\/div>
+    <div class="panel">
+        <div id="history">
+        <\/div>
+    <\/div>
+    <span id="state">未运行<\/span>
+    <button id="action" onclick="action()">启动<\/button>
+<\/body>
+<\/html>`
+
+
+//-------------------------------------------------------------------------------------------------
+//遗迹资源信息
+helper.pro.fortressResource = {
+    resources:[],
+
+    async _search(x, y) {
+        var o = await this._getWorldInfo(x, y)
+        //pointType=38:联盟田
+        o && o.pointList && o.pointList.forEach(p=>p.r && p.pointType == 38 && !this.resources.find(e=>e.x==p.x && e.y==p.y) && this.resources.push(p))
+    },
+
+    async _getWorldInfo(x, y) {
+        return send(RequestId.GET_WORLD_INFO, {
+                x: x,
+                y: y,
+                k: UserData.ServerId,
+                rid: 0,
+                width: 28,
+                height: 40,
+                marchInfo: !1,
+                viewLevel: 1
+            }
+        )
+    },
+
+    async _getResources() {
+        this.resources = []
+        await this._search(408-80,308) 
+        await this._search(408,308) 
+        await this._search(408+80,308)
+
+        await this._search(408-80,648) 
+        await this._search(408, 648) 
+        await this._search(408+80,648)
+   },
+
+    _render() {
+        var iframe = helper.dialog.iframe;
+        if (iframe && iframe.name == "fortress-resource") {
+            var res = this.resources.concat().sort((d,e)=>
+                Math.abs(d.r.expireTime-e.r.expireTime)>3 ? e.r.expireTime - d.r.expireTime :
+                d.r.itemId != e.r.itemId ? d.r.itemId - e.r.itemId :
+                d.r.ownerId != e.r.ownerId ? d.r.ownerId - e.r.ownerId :
+                d.x != e.x ? d.x - e.x : d.y - e.y 
+            )
+
+            //翻译田类型
+            res.forEach(e=>{
+                var data = __require("TableManager").TABLE.getTableDataById(__require("TableName").TableName.RESOURCE, e.r.itemId.toString())
+                e.text = data && __require("LocalManager").LOCAL.getText(data.name.toString())
+            })
+
+            iframe.contentWindow.render(res)
+        }
+    },
+
+    goto(e) {
+        var f = __require("WorldMapTools")
+          , r = __require("NWorldMapData").default.instance.serverData.currentSubMap
+
+        e = e.innerText.split(',')   
+        e.length == 2 && (f.default.goToWorldMapByPos({
+            x: e[0],
+            y: e[1],
+            s: UserData.ServerId,
+            subMap: r
+        }), this.close())
+    },
+
+    async open() {
+        helper.dialog.open({name:"fortress-resource", width:480, height:390, html:this.html})
+        await this._getResources()
+        this._render() 
+    },
+
+    close() {
+        helper.dialog.close()
+    }
+}
+
+helper.pro.fortressResource.html = String.raw
+`<html charset="UTF-8">
+<head>
+<style>
+    body{line-height:30px; vertical-align:top; padding:8px; font-size:14px; font-family:"Helvetica","Lucida Console","Microsoft soft";}
+    h3{display:block; margin-bottom:8px; text-align:center; width:100%}
+    div.panel{border:1px solid silver; border-radius:6px; margin-bottom:8px; padding:10px; padding-right:0px; box-shadow:3px 3px 6px gray;}
+    div.container{height:260px; overflow:auto;}
+    button{border:1px solid #999; border-radius:3px; outline-style:none; text-align:center; height:22px;} button:hover{background-color:#ccc;} button:focus{background-color:#ccc;} button:active{transform: translateY(1px);}
+    table,th,td{font-size:14px; font-family:"monospace"; border: 1px solid #aaa; border-collapse: collapse; text-align:left;} th{background-color: #ddd; white-space: nowrap;}
+    #download{margin-left:185px; margin-top:8px; width:80px;}
+<\/style>
+<\/script>      
+<script>
+    function $(a) {
+        return a && '#'==a[0] && document.getElementById(a.substring(1))
+    }
+
+    function render(resources) {
+        for (var i=0; i<resources.length; ++i) {
+            var e = resources[i]
+
+            var row = document.createElement('tr')
+            var col = document.createElement('td')
+            col.innerText = (i+1).toString()
+            row.appendChild(col)
+            
+            //资源坐标
+            col = document.createElement('td')
+            col.innerHTML = '<a href="javascript:void(0);" onclick="parent.helper.pro.fortressResource.goto(this)">' + e.x + ',' + e.y + '<\/a>'
+            row.appendChild(col)
+            
+            //资源类型
+            col = document.createElement('td')
+            col.innerText = e.text 
+            row.appendChild(col)
+
+            //刷新时间
+            col = document.createElement('td')
+            var t = new Date((e.r.expireTime - 14400)*1000)
+            col.innerText = (t.getMonth()+1) + '-' + t.getDate() + ' ' + t.getHours() + ':' + t.getMinutes().toString().padStart(2,'0') + ":" + t.getSeconds().toString().padStart(2,'0')
+            row.appendChild(col)
+
+            //占有者
+            col = document.createElement('td')
+            col.innerText = e.r.playerInfo ? JSON.parse(e.r.playerInfo).username : ''
+            row.appendChild(col)
+
+            $('#resources').children[1].appendChild(row)
+        }
+    }
+
+    function download() {
+        var html = "<html><head><meta charset='utf-8' \/><\/head><body>" + document.getElementsByTagName("table")[0].outerHTML + "<\/body><\/html>";
+        var blob = new Blob([html], { type: "application\/vnd.ms-excel" })
+
+        var a = document.createElement('a')
+        a.href = URL.createObjectURL(blob), a.download = "fortress-res.xls", a.style.display = 'none'
+        document.body.appendChild(a) && a.click() && document.body.removeChild(a)
+    }
+<\/script>
+<\/head>
+<body>
+    <h3>遗迹资源信息<\/h3>
+    <div class="panel">
+        <div class="container">
+            <table id="resources" cellpadding="2px">
+                <thead>
+                    <tr><th>序号<\/th><th>资源坐标<\/th><th>资源类型<\/th><th>刷新时间<\/th><th>采集人<\/th><\/tr>
+                <thead>
+                <tbody>
+                <\/tbody>
+            <\/table>
+        <\/div>
+    <\/div>
+    <button id="download" onclick="download()">下载<\/button>
+<\/body>
+<\/html>`
+
+
+//-------------------------------------------------------------------------------------------------
+//宝藏卡车信息
+helper.pro.treasureCar = {
+    config:[
+        {name:'四国曙光之地', points:[
+            {label: "中立区A1", x: 935, y: 345},
+            {label: "中立区B1", x: 935, y: 935},
+            {label: "中立区C1", x: 345, y: 935},
+            {label: "中立区D1", x: 345, y: 345},
+            {label: "中立区E1", x: 835, y: 445},
+            {label: "中立区F1", x: 835, y: 835},
+            {label: "中立区G1", x: 445, y: 835},
+            {label: "中立区H1", x: 445, y: 445}]
+        },
+        {name:'八国永恒之地', points:[
+            {label: "中立区A2", x: 573, y: 189},
+            {label: "中立区B2", x: 934, y: 206},
+            {label: "中立区C2", x: 950, y: 572},
+            {label: "中立区D2", x: 937, y: 935},
+            {label: "中立区D3", x: 780, y: 776},
+            {label: "中立区E2", x: 575, y: 953},
+            {label: "中立区F2", x: 209, y: 937},
+            {label: "中立区G2", x: 194, y: 560},
+            {label: "中立区H2", x: 207, y: 207},
+            {label: "中立区H3", x: 365, y: 365}]
+        },
+        {name:'八国曙光之地', points:[
+            {label: "中立区A2", x: 573, y: 189},
+            {label: "中立区B2", x: 934, y: 206},
+            {label: "中立区C2", x: 950, y: 572},
+            {label: "中立区D2", x: 937, y: 935},
+            {label: "中立区D3", x: 780, y: 776},
+            {label: "中立区E2", x: 575, y: 953},
+            {label: "中立区F2", x: 209, y: 937},
+            {label: "中立区G2", x: 194, y: 560},
+            {label: "中立区H2", x: 207, y: 207},
+            {label: "中立区H3", x: 365, y: 365}]
+        }
+    ],
+
+    //查找宝藏卡车押运信息
+    //marchType==74,宝藏卡车，rName:驻守人, reinforceSkin>=0, 当自己驻守时:rName="", ownerSkin>=0 ,即：当无人驻守时，ownerSkin == -1 && reinforceSkin == -1
+    async _getMarches(e) {
+        this.marches = []
+        var o = await send(RequestId.GET_WORLD_INFO, {x:e.x, y:e.y, k:UserData.ServerId, marchInfo:!0, viewLevel:1})   // x,y:宝藏卡车起始坐标
+        if (o && o.marchList) {
+            for(var e of o.marchList) {
+                if (74 == e.marchType) {
+                    e.escort = e.ownerSkin>=0 || e.reinforceSkin>=0 ? await send(RequestId.SPECIAL_CAR_INFO, {marchId: e.marchId}) : null
+                    this.marches.push(e)
+                }
+            }
+        }
+        this.marches.sort((d,e)=>e.marchArrive - d.marchArrive)
+    },
+
+    _render() {
+        var iframe = helper.dialog.iframe
+        if (iframe && iframe.name == "treasure-car") {
+            var c = this.config[this.index]
+            iframe.contentWindow.render(c, this.selected, this.marches)
+        }
+    },
+
+    async _execute() {
+        this.selected ? await this._getMarches(this.selected) : (this.marches = [])
+        this._render()
+    },
+
+    async _onTimer() {
+        if (!this.busy) {
+            try {this.busy = 1, await this._execute()} finally{this.busy = 0}
+        }      
+    },
+
+    apply(label) {
+        var c = this.config[this.index]
+        this.selected = c && c.points.find(e=>e.label == label)
+        this._onTimer()
+    },
+
+    goto_1(march) {
+        if (1 == march.state) {
+            var r = (ServerTime - march.marchStartTime)\/(march.marchArrive - march.marchStartTime)
+            var x = Math.floor((march.target.tx-march.begin.bx)*r + march.begin.bx)
+            var y = Math.floor((march.target.ty-march.begin.by)*r + march.begin.by) 
+            1 == (x % 2 + y % 2) && y++
+            __require("WorldMapTools").default.goToWorldMapByPos({x: x, y: y, s: march.begin.bk, subMap: 0})
+            this.close()
+        }
+    },
+
+    goto_2(march) {
+        if (march && march.marchInfo) {
+            var x = march.marchInfo.begin.bx
+            var y = march.marchInfo.begin.by 
+            var s = march.marchInfo.begin.bk
+            __require("WorldMapTools").default.goToWorldMapByPos({x: x, y: y, s: s, subMap: 0})
+            this.close()
+        }
+    },
+
+    init() {
+        var m = __require("GameTools")
+        this.index = m.default.isC4Open() ? 0 : m.default.isC8Open() ? 1 : m.default.isC8S2Open() ? 2 : -1
+        this.selected = null
+        this.marches = []
+    },
+
+    open() {
+        helper.dialog.open({name:"treasure-car", width:750, height:500, html:this.html, onclose:this.onclose.bind(this)})
+        //this.timer = setInterval(this._onTimer.bind(this), 1000)
+        this._onTimer()
+    },
+
+    close() {
+        helper.dialog.close()
+    },
+
+    onclose() {
+        clearInterval(this.timer)
+    }
+}
+
+helper.pro.treasureCar.html = String.raw
+`<html charset="UTF-8">
+<head>
+<style>
+    body{line-height:30px; vertical-align:top; padding:4px; margin-bottom:0px; padding-bottom:0px; font-size:14px; font-family:"Helvetica","Lucida Console","Microsoft soft";}
+    h3{display:block; margin-bottom:8px; text-align:center; width:100%}
+    label{margin-left:2px; margin-right:2px;}
+    input[type="checkbox"]{margin-right:1px; vertical-align:top; margin-top:8px; width:14px; height:14px;}
+    select{color:#333; border:1px solid #999; border-radius:4px; outline-style:none; margin-left:0px; padding-top:1px;}
+    div.panel{border:1px solid silver; border-radius:6px; margin-bottom:8px; padding:10px; padding-right:0px; box-shadow:3px 3px 6px gray;}
+    div.container{height:360px; overflow-x:auto; overflow-y:auto;}
+    button{border:1px solid #999; border-radius:3px; outline-style:none; text-align:center; height:22px;} button:hover{background-color:#ccc;} button:focus{background-color:#ccc;} button:active{transform: translateY(1px);}
+    thead{background-color: #ddd; white-space: nowrap;} tbody{white-space: nowrap;}
+    table,th,td{font-size:14px; font-family:"monospace"; border: 1px solid #aaa; border-collapse: collapse; text-align:left;} th{background-color: #ddd; white-space: nowrap;}
+    #config{height:26px}
+<\/style>
+<\/script>      
+<script>
+    function $(a) {
+        return a && '#'==a[0] && document.getElementById(a.substring(1))
+    }
+
+    function escortInfo(e) {
+        var TABLE = parent.__require("TableManager").TABLE
+        var TableName = parent.__require("TableName").TableName
+        var s = '<a href="javascript:void(0);" onclick="parent.helper.pro.treasureCar.goto_2(this.parentNode.march)">' + e.marchInfo.name + '<\/a>  '
+        
+        //驻守兵种数量
+        var g = {}
+        e && e.armyInfoList.forEach(e=>{
+            var o = TABLE.getTableDataById(TableName.ARMY, e.armyId)
+            var k = o && ((o.type - o.type % 100) * 100 + o.level)
+            k && (g[k] = (g[k] ? g[k] : 0) + e.armyDbIds.length + (o.mecha_id ? 10000 : 0))
+        })
+
+        for(var k in g) {
+            var t = Math.floor(k\/1000)
+            var l = Math.floor(k%1000)
+            var n = g[k] % 10000
+            var m = (g[k] > 10000) ? "(*)" : ""
+            s += l + '级' + (t == 10 ? '陆' : t == 20 ? '海' : '30' ? '空' : t) + ':' + n + m + ', '  
+        }
+        s = s.substring(0, s.length-2)
+        return s
+    }
+
+    function render(config, selected, marches) {
+        $("#area").options.length = 0
+        for(var i = 0, a = config; a && i < a.points.length; ++i) {
+            var e = a.points[i]
+            var option = new Option(e.label, e.label)
+            //option.selected = selected && (e.label == selected.label)
+            $("#area").options.add(option)
+        }
+        $("#area").value = selected ? selected.label : ""
+
+        $("#marches").children[1].innerHTML = ""
+        for(var i = 0; i < marches.length; ++i) {
+            var e = marches[i]
+            var row = document.createElement('tr')
+            var col = document.createElement('td')
+            col.march = e
+            //col.innerHTML = '<a href="javascript:void(0);" onclick="parent.helper.pro.treasureCar.goto_1(this.parentNode.march)">' + (i+1).toString().padStart(3,'0') + '<\/a>'
+            col.innerHTML = '<a href="javascript:void(0);" onclick="parent.helper.pro.treasureCar.goto_1(this.parentNode.march)">' + e.name + '<\/a>'
+            row.appendChild(col)
+
+            //col = document.createElement('td')
+            //col.innerText = e.name
+            //row.appendChild(col)
+           
+            //资源信息
+            col = document.createElement('td')
+            col.innerText = e.lv + '级, ' + (100 == e.rate ? 0 : 75 == e.rate ? 1 : 50 == e.rate ? 2 : 3) + '次'
+            row.appendChild(col)
+
+            //驻守1
+            col = document.createElement('td')
+            e.escort && e.escort.ownerMarch && (
+                col.march = e.escort.ownerMarch, 
+                col.innerHTML = escortInfo(col.march)
+            )
+            row.appendChild(col)
+
+            //驻守2
+            col = document.createElement('td')
+            e.escort && e.escort.reinforceMarch && (
+                col.march = e.escort.reinforceMarch, 
+                col.innerHTML = escortInfo(col.march)
+            )
+            row.appendChild(col)
+
+            //剩余时间
+            var t = Math.max(0, e.marchArrive - parent.ServerTime), h = Math.floor(t\/3600), m = Math.floor((t-h*3600)\/60), s = t-h*3600-m*60
+            col = document.createElement('td')
+            col.innerText = h.toString().padStart(2,'0') + ':' + m.toString().padStart(2,'0') + ':' + s.toString().padStart(2,'0')
+            row.appendChild(col)
+
+            $('#marches').children[1].appendChild(row)
+        }
+    }
+
+    function apply() {
+        parent.helper.pro.treasureCar.apply($("#area").value)    
+    }
+<\/script>
+<\/head>
+<body>
+    <h3>宝藏卡车信息<\/h3>
+    <div id=config class="panel">
+        <label>选择中立区:<\/label>
+        <select id="area" style="width:100px"; onchange="apply()">
+        <\/select>
+    <\/div>
+    <div class="panel">
+        <div class="container">
+            <table id="marches" cellpadding="2px">
+                <thead>
+                    <tr><th>所有者<\/th><th>资源信息<\/th><th>驻守1<\/th><th>驻守2<\/th><th>剩余时间<\/th><\/tr>
+                <\/thead>
+                <tbody>
+                <\/tbody>
+            <\/table>
+        <\/div>
+    <\/div>
+<\/body>
+<\/html>`
+
+
+helper.pro.miscRewards && helper.pro.miscRewards.free()
+helper.pro.miscRewards = {
+    setting: {
+        dailygift: !1,     //每日补给
+        diamond: !1,       //钻石金币
+        alliance: !1,      //联盟帮助 
+        wilderness: !1,    //荒野行动
+        adventure: !1,     //远征行动
+        island: !1,        //岛屿扫荡
+        bargain: !1        //折扣商城
+    },
+
+    _save() {
+        setItem("misc-rewards", JSON.stringify({setting:this.setting}))
+    },
+
+    async _load() {
+        var o = await getItem("misc-rewards")
+        o && (o = JSON.parse(o)) && (
+            o.setting.dailygift && (this.setting.dailygift = o.setting.dailygift),
+            o.setting.diamond && (this.setting.diamond = o.setting.diamond),
+            o.setting.alliance && (this.setting.alliance = o.setting.alliance),
+            o.setting.wilderness && (this.setting.wilderness = o.setting.wilderness),
+            o.setting.adventure && (this.setting.adventure = o.setting.adventure),
+            o.setting.island && (this.setting.island = o.setting.island),
+            o.setting.bargain && (this.setting.bargain = o.setting.bargain)
+        )
+    },
+
+    _start() {
+        this.setting.dailygift && helper.pro.dailyGift.start()
+        this.setting.diamond && helper.pro.dayDiamond.start()
+        this.setting.alliance && helper.pro.allianceHelp.start()
+        this.setting.adventure && helper.pro.adventureReward.start()
+        this.setting.wilderness && helper.pro.wildernessReward.start()
+        this.setting.island && helper.pro.isleSweep.start()
+        this.setting.bargain && helper.pro.bargainShop.start()
+    },
+
+    _stop() {
+        this.setting.dailygift || helper.pro.dailyGift.stop()
+        this.setting.diamond || helper.pro.dayDiamond.stop()
+        this.setting.alliance || helper.pro.allianceHelp.stop()
+        this.setting.adventure || helper.pro.adventureReward.stop()
+        this.setting.wilderness || helper.pro.wildernessReward.stop()
+        this.setting.island || helper.pro.isleSweep.stop()
+        this.setting.bargain || helper.pro.bargainShop.stop()
+    },
+
+    apply(setting) {
+        this.setting = setting
+        this._save(), this._stop(), this._start()
+    },
+
+    async init() {
+        helper.pro.dailyGift.init && helper.pro.dailyGift.init()
+        helper.pro.dayDiamond.init && await helper.pro.dayDiamond.init()
+        helper.pro.allianceHelp.init && helper.pro.allianceHelp.init()
+        helper.pro.adventureReward.init && await helper.pro.adventureReward.init()
+        helper.pro.wildernessReward.init && await helper.pro.wildernessReward.init()
+        helper.pro.isleSweep.init && await helper.pro.isleSweep.init()
+        helper.pro.bargainShop.init && await helper.pro.bargainShop.init()
+        await this._load(), this._start()
+    },
+
+    free() {
+        this._stop()
+    },
+
+    dayInit() {
+        helper.pro.dailyGift.dayInit && helper.pro.dailyGift.dayInit()
+        helper.pro.dayDiamond.dayInit && helper.pro.dayDiamond.dayInit()
+        helper.pro.allianceHelp.dayInit && helper.pro.allianceHelp.dayInit()
+        helper.pro.adventureReward.dayInit && helper.pro.adventureReward.dayInit()
+        helper.pro.wildernessReward.dayInit && helper.pro.wildernessReward.dayInit()
+        helper.pro.isleSweep.dayInit && helper.pro.isleSweep.dayInit()
+        helper.pro.bargainShop.dayInit && helper.pro.bargainShop.dayInit()
+     },
+
+    async open() {
+        helper.dialog.open({name:"misc-rewards", width:500, height:200, html:this.html})
+        helper.dialog.iframe.contentWindow.render(this.setting) 
+    }
+}
+
+helper.pro.miscRewards.html = String.raw
+`<html charset="UTF-8">
+<head>
+<style>
+    body{line-height:30px; vertical-align:top; padding:8px; font-size:14px; font-family:"Helvetica","Lucida Console","Microsoft soft";}
+    h3{display:block; margin-bottom:8px; text-align:center; width:100%}
+    div.panel{border:1px solid silver; border-radius:6px; margin-bottom:8px; padding:10px; padding-right:0px; box-shadow:3px 3px 6px gray; height:100px;}
+    input[type="checkbox"]{margin-right:1px; vertical-align:top; margin-top:8px; width:14px; height:14px;}
+    label{margin-right:12px;}
+<\/style>
+<\/script>      
+<script>
+    function $(a) {
+        return a && '#'==a[0] && document.getElementById(a.substring(1))
+    }
+
+    function render(setting) {
+        $('#dailygift').checked = setting.dailygift
+        $('#diamond').checked = setting.diamond
+        $('#alliance').checked = setting.alliance
+        $('#adventure').checked = setting.adventure
+        $('#wilderness').checked = setting.wilderness
+        $('#island').checked = setting.island
+        $('#bargain').checked = setting.bargain
+    }
+    function apply() {
+        var setting = {}
+        setting.dailygift = $('#dailygift').checked
+        setting.diamond = $('#diamond').checked
+        setting.alliance = $('#alliance').checked
+        setting.adventure = $('#adventure').checked
+        setting.wilderness = $('#wilderness').checked
+        setting.island = $('#island').checked
+        setting.bargain = $('#bargain').checked
+        parent.helper.pro.miscRewards.apply(setting)
+    }
+<\/script>
+<\/head>
+<body>
+    <h3>自动常规任务<\/h3>
+    <div class="panel">
+        <input type="checkbox" id="dailygift" onclick="apply()"><label>每日补给<\/label>
+        <input type="checkbox" id="diamond" onclick="apply()"><label>钻石金币<\/label>
+        <input type="checkbox" id="alliance" onclick="apply()"><label>联盟帮助<\/label>
+        <input type="checkbox" id="wilderness" onclick="apply()"><label>荒野行动<\/label>
+        <input type="checkbox" id="adventure" onclick="apply()"><label>远征行动<\/label>
+        <input type="checkbox" id="island" onclick="apply()"><label>岛屿扫荡<\/label>
+        <input type="checkbox" id="bargain" onclick="apply()"><label>折扣商城<\/label>
+    <\/div>
+<\/body>
+<\/html>`
+
+helper.pro.dailyGift && helper.pro.dailyGift.free()
+helper.pro.dailyGift = {
+    async _execute() {
+        var TABLE = __require("TableManager").TABLE, TableName = __require("TableName").TableName
+        var o = TABLE.getTableDataById(TableName.ONLINE_REWARD, (UserData.timeReward.times+1))
+        if (o && o.time && o.time < ServerTime - UserData.timeReward.rewardTime) {
+            o = await send(RequestId.GetTimeReward, {})
+            o && o.timeReward && UserData.updateTimeReward(o.timeReward)
+        }
+
+    },
+
+    async _onTimer() {
+        if (!this.busy) try {this.busy = 1, await this._execute()} finally{this.busy = 0}
+    },
+
+    start() {
+        this.timer || (this.timer = setInterval(this._onTimer.bind(this), 1000))
+    },
+
+    stop() {
+        this.timer && (clearInterval(this.timer), this.timer = 0)
+    },
+
+    init() {
+    },
+
+    free() {
+        this.stop()
+    }      
+}
+
+//-------------------------------------------------------------------------------------------------
+//领取每日钻石
+helper.pro.dayDiamond && helper.pro.dayDiamond.free()
+helper.pro.dayDiamond = {
+    async _execute() {
+        var d = __require("TableManager").TABLE.getTableDataById("data_config", "5012")
+        var n = d && d.value && d.value.split("|").length
+        UserData.GoldVideoCount < n && await send(RequestId.VideoRewardGet, {type: 8, param1: "", param2: ""})
+
+        UserData.FreeCoinData.ShareCount < UserData.FreeCoinData.ShareMaxCount && await send(RequestId.FreeCoinShare, {type: 1})
+    },   
+    
+    _onTimer() {
+        this._execute()
+    },
+
+    start() {
+        this.timer || (this.timer = setInterval(this._onTimer.bind(this), 30000))
+    },
+
+    stop() {
+        this.timer && (clearInterval(this.timer), this.timer = 0)
+    },
+
+    dayInit() {
+        var t = new Date(ServerTime*1000)
+        if (0 === t.getHours() && 0 === t.getMinutes() && 3 > t.getSeconds()) {
+            UserData._dayGoldVideoCount = 0
+            UserData.FreeCoinData._ShareCount = 0
+        }
+    },
+
+    init() {
+        //打开领取每日钻石
+        __require("GameTools").default.canGetVideoDiamondByMonthlyCard = ()=>!1
+
+        //跳过广告领取钻石
+        __require("TableManager").TABLE.getTableGroup("data_config")[138005].value='0'
+
+        //每人免费领取金币
+        __require("PlatformCommon").PlatformCommon.canRewardVideoAd = ()=>!0
+    },
+
+    free() {
+        this.stop()
+    }
+}
+
+
+helper.pro.allianceHelp && helper.pro.allianceHelp.free()
+helper.pro.allianceHelp = {
+    async _execute() {
+        if (UserData.Alliance.AllianceHelpCount < UserData.Alliance.AllianceHelpMax && null == UserData.Alliance.getSelfHelpData()) {
+            var t = __require("TableManager").TABLE.getTableGroup(__require("TableName").TableName.ALLIANCE_HELP), a = []
+            for (var i = 10003; i < 10007; i++) UserData.Level >= t[i].unlock_level && a.push(t[i])
+            a.sort((d,e)=>UserData.getItemAmount(d.reward_param)-UserData.getItemAmount(e.reward_param)) 
+            var o = a[0] && await send(RequestId.ALLIANCE_HELP_APPLY, {type: 4, itemId: a[0].id, helpNum: 1})
+            o && (
+                UserData.Alliance.UpdateAllianceHelpCountAndHonor(o),
+                UserData.Alliance.UpdateSelfHelpList(o.selfHelps, !1)
+            )
+        } 
+ 
+        var t = UserData.Alliance.getSelfHelpData()
+        if (t && t.HelpCount >= t.MaxCount) {
+            var o = await send(RequestId.ALLIANCE_HELP_RECEIVE, {type: t.Type, qid: "0"})
+            UserData.Alliance.DeleteSelfHelpList(t.Type)
+        }
+    },
+
+    async _onTimer() {
+        if (!this.busy) try {this.busy = 1, await this._execute()} finally{this.busy = 0}
+    },
+
+    start() {
+        this.timer || (
+            this.timer = setInterval(this._onTimer.bind(this), 1000)
+        )
+    },
+
+    stop() {
+        this.timer && (
+            clearInterval(this.timer), this.timer = 0
+        )
+    },
+
+    init() {       
+    },
+
+    free() {
+        this.stop()
+    }      
+}
+
+helper.pro.adventureReward && helper.pro.adventureReward.free()
+helper.pro.adventureReward = {
+    async _execute() {
+        var a = ServerTime - UserData.AdventureData.ManualCollectTime
+        var i = 3600 * parseInt(__require("GameTools").default.getDataConfigData(130073))
+        var o = a>i && await send(RequestId.Adventure_Reward, {})
+        o && o.userIdle && (
+            UserData.AdventureData._CollectTime = o.userIdle.collectTime,
+            UserData.AdventureData._ManualCollectTime = o.userIdle.manualCollectTime
+        )
+    },
+
+    async _onTimer() {
+        if (!this.busy) try {this.busy = 1, await this._execute()} finally{this.busy = 0}
+    },
+
+    start() {
+        this.timer || (this.timer = setInterval(this._onTimer.bind(this), 1000))
+    },
+
+    stop() {
+        this.timer && (clearInterval(this.timer), this.timer = 0)
+    },
+
+    init() {
+    },
+
+    free() {
+        this.stop()
+    }
+}
+
+helper.pro.wildernessReward && helper.pro.wildernessReward.free()
+helper.pro.wildernessReward = {
+    async _execute() {
+        var controller = __require("MechaTowerController").MechaTowerController.getInstance()
+        if (0 !== controller.getCurRoomId() && controller.isRewardMax()) {
+            var o = await sendPB(__require("NRequestId").NRequestId.MECHA_BATTLE_GET_TIME_REWARD, {header: {}, mechaBattleGetTimeReward: {}})
+            o && o.pbAck && 0 === o.pbAck.header.s && o.pbAck.mechaBattleGetTimeReward && controller.setRewardStartTime(o.pbAck.mechaBattleGetTimeReward.rewardStartTime)
+        }
+    },
+
+    async _onTimer() {
+        if (!this.busy) try {this.busy = 1, await this._execute()} finally{this.busy = 0}
+    },
+
+    start() {
+        this.timer || (this.timer = setInterval(this._onTimer.bind(this), 1000))
+    },
+
+    stop() {
+        this.timer && (clearInterval(this.timer), this.timer = 0)
+    },
+
+    init() {
+    },
+
+    free() {
+        this.stop()
+    }    
+}
+
+helper.pro.isleSweep && helper.pro.isleSweep.free()
+helper.pro.isleSweep = {
+    async _execute() {
+        if (new Date(ServerTime*1000).getHours() > 12) {
+            var o = UserData.IsleData
+            var o = (o.State == 1 || o.IsClear) && o.ResetTime > 0 && await send(RequestId.ISLE_RESET, {})
+            o && UserData.IsleData.UpdateData(o)
+
+            o = UserData.IsleData.getCurrentChapter()
+            o = o && o.Index == 0 && o.PathList.length == 0 && await send(RequestId.ISLE_SWEEP, {})
+            o && UserData.IsleData.UpdateData(o)
+        }
+    },
+
+    async _onTimer() {
+        if (!this.busy) try {this.busy = 1, await this._execute()} finally{this.busy = 0}
+    },
+
+    start() {
+        this.timer || (this.timer = setInterval(this._onTimer.bind(this), 10000))
+    },
+
+    stop() {
+        this.timer && (clearInterval(this.timer), this.timer = 0)
+    },
+
+    init() {
+    },
+
+    free() {
+        this.stop()
+    }    
+}
+
+//-------------------------------------------------------------------------------------------------
+//惊喜折扣商城(打折券砍一刀)
+helper.pro.bargainShop && helper.pro.bargainShop.free()
+helper.pro.bargainShop = {
+    //推送聊天事件
+    async _onChatPush(e) {
+        if (e.uid != UserData.UID && e.llm) {
+            var o = JSON.parse(e.llm)
+            o && o.bargain_aid && o.bargain_item_id && UserData.getItemAmount(3953010) > 0 && (
+                console.log("bargain_data:", o),
+                o = await send(RequestId.BARGAINSHOP_BARGAIN, {aid: Number(o.bargain_aid), item_id: Number(o.bargain_item_id), uid: Number(e.uid)}),
+                console.log("bargain_result:", o)
+            )
+        }  
+    },          
+
+    start() {
+        this.running || (this.running = !0, __require("EventCenter").EVENT.on("newChatPush", this._onChatPush))
+    },
+
+    stop() {
+        this.running && (this.running = !1, __require("EventCenter").EVENT.off("newChatPush", this._onChatPush))
+    },
+
+    init() {
+    },
+
+    free() {
+        this.stop()
+    }
+}
+
+
+helper.pro.enable()
+
+
+console.log("Init ultimate functions succeed.")
